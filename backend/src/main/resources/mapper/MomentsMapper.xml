@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cloudpan.mapper.MomentsMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO moments (user_id, content, media, media_type, visibility)
+        VALUES (#{userId}, #{content}, #{media}, #{mediaType}, #{visibility})
+    </insert>
+
+    <insert id="insertVisibility">
+        INSERT INTO moment_visibility (moment_id, user_id) VALUES
+        <foreach collection="userIds" item="userId" separator=",">
+            (#{momentId}, #{userId})
+        </foreach>
+    </insert>
+
+    <select id="selectMoments" resultType="com.cloudpan.entity.Moments">
+        SELECT m.*, u.username, u.avatar as userAvatar
+        FROM moments m
+        JOIN user u ON m.user_id = u.id
+        WHERE 
+        <choose>
+            <!-- Viewing specific moment -->
+            <when test="momentId != null">
+                m.id = #{momentId}
+                AND (
+                    m.user_id = #{currentUserId} -- Own moments
+                    OR m.visibility = 'PUBLIC'
+                    OR (m.visibility = 'FRIENDS' AND EXISTS (
+                        SELECT 1 FROM friend WHERE user_id = m.user_id AND friend_id = #{currentUserId}
+                    ))
+                    OR (m.visibility = 'PARTIAL' AND EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{currentUserId}))
+                    OR (m.visibility = 'EXCLUDE' AND NOT EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{currentUserId}))
+                )
+            </when>
+            <!-- Viewing specific user's moments -->
+            <when test="targetUserId != null">
+                m.user_id = #{targetUserId}
+                AND (
+                    m.user_id = #{currentUserId} -- Own moments
+                    OR (
+                        m.visibility = 'PUBLIC'
+                        OR (m.visibility = 'FRIENDS' AND EXISTS (
+                            SELECT 1 FROM friend WHERE user_id = #{targetUserId} AND friend_id = #{currentUserId}
+                        ))
+                        OR (m.visibility = 'PARTIAL' AND EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{currentUserId}))
+                        OR (m.visibility = 'EXCLUDE' AND NOT EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{currentUserId}))
+                    )
+                )
+            </when>
+            <!-- Viewing feed (own + friends) -->
+            <otherwise>
+                (
+                    m.user_id = #{currentUserId} -- Own moments
+                    OR (
+                        m.user_id IN 
+                        <foreach collection="friendIds" item="fid" open="(" separator="," close=")">
+                            #{fid}
+                        </foreach>
+                        AND (
+                            m.visibility = 'PUBLIC'
+                            OR m.visibility = 'FRIENDS'
+                            OR (m.visibility = 'PARTIAL' AND EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{currentUserId}))
+                            OR (m.visibility = 'EXCLUDE' AND NOT EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{currentUserId}))
+                        )
+                    )
+                )
+            </otherwise>
+        </choose>
+        ORDER BY m.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <insert id="insertLike">
+        INSERT IGNORE INTO moment_likes (moment_id, user_id)
+        VALUES (#{momentId}, #{userId})
+    </insert>
+
+    <delete id="deleteLike">
+        DELETE FROM moment_likes WHERE moment_id = #{momentId} AND user_id = #{userId}
+    </delete>
+
+    <insert id="insertComment">
+        INSERT INTO moment_comments (moment_id, user_id, reply_to_user_id, content)
+        VALUES (#{momentId}, #{userId}, #{replyToUserId}, #{content})
+    </insert>
+
+    <select id="selectLikesByMomentIds" resultType="com.cloudpan.entity.MomentLike">
+        SELECT ml.*, u.username
+        FROM moment_likes ml
+        JOIN user u ON ml.user_id = u.id
+        WHERE ml.moment_id IN
+        <foreach collection="momentIds" item="mid" open="(" separator="," close=")">
+            #{mid}
+        </foreach>
+        ORDER BY ml.created_at ASC
+    </select>
+
+    <select id="selectCommentsByMomentIds" resultType="com.cloudpan.entity.MomentComment">
+        SELECT mc.*, u.username, ru.username as replyToUsername
+        FROM moment_comments mc
+        JOIN user u ON mc.user_id = u.id
+        LEFT JOIN user ru ON mc.reply_to_user_id = ru.id
+        WHERE mc.moment_id IN
+        <foreach collection="momentIds" item="mid" open="(" separator="," close=")">
+            #{mid}
+        </foreach>
+        ORDER BY mc.created_at ASC
+    </select>
+    
+    <select id="selectById" resultType="com.cloudpan.entity.Moments">
+        SELECT * FROM moments WHERE id = #{id}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM moments WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteLikesByMomentId">
+        DELETE FROM moment_likes WHERE moment_id = #{momentId}
+    </delete>
+
+    <delete id="deleteCommentsByMomentId">
+        DELETE FROM moment_comments WHERE moment_id = #{momentId}
+    </delete>
+
+    <delete id="deleteVisibilityByMomentId">
+        DELETE FROM moment_visibility WHERE moment_id = #{momentId}
+    </delete>
+
+    <select id="selectCommentById" resultType="com.cloudpan.entity.MomentComment">
+        SELECT * FROM moment_comments WHERE id = #{id}
+    </select>
+
+    <delete id="deleteCommentById">
+        DELETE FROM moment_comments WHERE id = #{id}
+    </delete>
+
+    <update id="updateComment">
+        UPDATE moment_comments SET content = #{content} WHERE id = #{id}
+    </update>
+
+    <update id="updateVisibility">
+        UPDATE moments SET visibility = #{visibility} WHERE id = #{id}
+    </update>
+
+    <select id="countNewMoments" resultType="int">
+        SELECT COUNT(*)
+        FROM moments m
+        WHERE m.created_at > #{lastReadAt}
+          AND (
+              m.user_id = #{userId} <!-- Include own moments? No, usually not new. But maybe? User said "friend read it". Let's exclude own. -->
+              OR
+              <if test="friendIds != null and friendIds.size() > 0">
+                  m.user_id IN
+                  <foreach collection="friendIds" item="friendId" open="(" separator="," close=")">
+                      #{friendId}
+                  </foreach>
+              </if>
+              <if test="friendIds == null or friendIds.size() == 0">
+                  1 = 0
+              </if>
+          )
+          AND m.user_id != #{userId} <!-- Explicitly exclude own moments -->
+          AND (
+              m.visibility = 'PUBLIC'
+              OR m.visibility = 'FRIENDS'
+              OR (m.visibility = 'PARTIAL' AND EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{userId}))
+              OR (m.visibility = 'EXCLUDE' AND NOT EXISTS (SELECT 1 FROM moment_visibility mv WHERE mv.moment_id = m.id AND mv.user_id = #{userId}))
+          )
+    </select>
+
+</mapper>

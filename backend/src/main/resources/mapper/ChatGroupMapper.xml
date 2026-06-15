@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cloudpan.mapper.ChatGroupMapper">
+    <resultMap id="BaseResultMap" type="com.cloudpan.entity.ChatGroup">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="name" property="name" jdbcType="VARCHAR"/>
+        <result column="owner_id" property="ownerId" jdbcType="BIGINT"/>
+        <result column="avatar" property="avatar" jdbcType="VARCHAR"/>
+        <result column="notice" property="notice" jdbcType="VARCHAR"/>
+        <result column="created_at" property="createdAt" jdbcType="TIMESTAMP"/>
+        <result column="updated_at" property="updatedAt" jdbcType="TIMESTAMP"/>
+        <result column="unread_count" property="unreadCount" jdbcType="INTEGER"/>
+        <result column="is_top" property="isTop" jdbcType="BIT"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.cloudpan.entity.ChatGroup" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO chat_group (name, owner_id, avatar, notice, created_at, updated_at)
+        VALUES (#{name}, #{ownerId}, #{avatar}, #{notice}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM chat_group WHERE id = #{id}
+    </select>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT g.*, gm.is_top,
+               (SELECT COUNT(*) 
+                FROM chat_message m 
+                WHERE m.group_id = g.id 
+                  AND m.sender_id != #{userId}
+                  AND m.id > COALESCE(gm.last_read_message_id, 0)) as unread_count,
+               (SELECT m.created_at FROM chat_message m 
+                WHERE m.group_id = g.id
+                ORDER BY m.created_at DESC LIMIT 1) as lastMessageTime
+        FROM chat_group g
+        JOIN group_member gm ON g.id = gm.group_id
+        WHERE gm.user_id = #{userId}
+        ORDER BY gm.is_top DESC, lastMessageTime DESC, g.updated_at DESC
+    </select>
+
+    <update id="update">
+        UPDATE chat_group
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+            <if test="notice != null">notice = #{notice},</if>
+            <if test="updatedAt != null">updated_at = #{updatedAt},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM chat_group WHERE id = #{id}
+    </delete>
+</mapper>

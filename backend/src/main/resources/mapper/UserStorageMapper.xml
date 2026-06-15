@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cloudpan.mapper.UserStorageMapper">
+    <resultMap id="BaseResultMap" type="com.cloudpan.entity.UserStorage">
+        <id column="user_id" property="userId" jdbcType="BIGINT"/>
+        <result column="total_quota" property="totalQuota" jdbcType="BIGINT"/>
+        <result column="used_space" property="usedSpace" jdbcType="BIGINT"/>
+        <result column="updated_at" property="updatedAt" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT * FROM user_storage WHERE user_id = #{userId}
+    </select>
+
+    <insert id="insert" parameterType="com.cloudpan.entity.UserStorage">
+        INSERT INTO user_storage (user_id, total_quota, used_space, updated_at)
+        VALUES (#{userId}, #{totalQuota}, #{usedSpace}, NOW())
+    </insert>
+
+    <update id="updateUsedSpace">
+        UPDATE user_storage 
+        SET used_space = used_space + #{delta}, updated_at = NOW()
+        WHERE user_id = #{userId}
+    </update>
+    
+    <update id="updateTotalQuota">
+        UPDATE user_storage 
+        SET total_quota = #{newQuota}, updated_at = NOW()
+        WHERE user_id = #{userId}
+    </update>
+    
+    <update id="setUsedSpace">
+        UPDATE user_storage 
+        SET used_space = #{usedSpace}, updated_at = NOW()
+        WHERE user_id = #{userId}
+    </update>
+</mapper>

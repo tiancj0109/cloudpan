@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cloudpan.mapper.TeamMemberMapper">
+    <resultMap id="BaseResultMap" type="com.cloudpan.entity.TeamMember">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="team_id" property="teamId" jdbcType="BIGINT"/>
+        <result column="user_id" property="userId" jdbcType="BIGINT"/>
+        <result column="role" property="role" jdbcType="VARCHAR"/>
+        <result column="permission" property="permission" jdbcType="VARCHAR"/>
+        <result column="joined_at" property="joinedAt" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.cloudpan.entity.TeamMember" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO team_member (team_id, user_id, role, permission, joined_at)
+        VALUES (#{teamId}, #{userId}, #{role}, #{permission}, NOW())
+    </insert>
+
+    <select id="findByTeamId" resultMap="BaseResultMap">
+        SELECT * FROM team_member WHERE team_id = #{teamId}
+    </select>
+    
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT * FROM team_member WHERE user_id = #{userId}
+    </select>
+    
+    <select id="findByTeamIdAndUserId" resultMap="BaseResultMap">
+        SELECT * FROM team_member WHERE team_id = #{teamId} AND user_id = #{userId}
+    </select>
+    
+    <delete id="deleteByTeamIdAndUserId">
+        DELETE FROM team_member WHERE team_id = #{teamId} AND user_id = #{userId}
+    </delete>
+</mapper>

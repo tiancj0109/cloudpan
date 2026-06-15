@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cloudpan.mapper.MomentNotificationMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO moment_notifications (user_id, sender_id, moment_id, type, content, is_read)
+        VALUES (#{userId}, #{senderId}, #{momentId}, #{type}, #{content}, 0)
+    </insert>
+
+    <select id="selectByUserId" resultType="com.cloudpan.entity.MomentNotification">
+        SELECT mn.*, 
+               u.username as senderName, 
+               u.avatar as senderAvatar,
+               m.media as momentImage,
+               m.content as momentContent
+        FROM moment_notifications mn
+        JOIN user u ON mn.sender_id = u.id
+        JOIN moments m ON mn.moment_id = m.id
+        WHERE mn.user_id = #{userId}
+          AND (mn.is_read = 0 OR mn.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY))
+        ORDER BY mn.created_at DESC
+    </select>
+
+    <select id="countUnread" resultType="int">
+        SELECT COUNT(*) FROM moment_notifications 
+        WHERE user_id = #{userId} AND is_read = 0
+    </select>
+
+    <update id="markAllAsRead">
+        UPDATE moment_notifications 
+        SET is_read = 1 
+        WHERE user_id = #{userId} AND is_read = 0
+    </update>
+
+    <delete id="deleteByMomentId">
+        DELETE FROM moment_notifications WHERE moment_id = #{momentId}
+    </delete>
+
+    <delete id="deleteByAttributes">
+        DELETE FROM moment_notifications 
+        WHERE moment_id = #{momentId}
+          AND sender_id = #{senderId}
+          AND type = #{type}
+          AND content = #{content}
+    </delete>
+
+    <select id="selectLatestUnreadSenderAvatar" resultType="string">
+        SELECT u.avatar
+        FROM moment_notifications mn
+        JOIN user u ON mn.sender_id = u.id
+        WHERE mn.user_id = #{userId} AND mn.is_read = 0
+        ORDER BY mn.created_at DESC
+        LIMIT 1
+    </select>
+
+    <update id="updateContentByAttributes">
+        UPDATE moment_notifications
+        SET content = #{newContent}
+        WHERE moment_id = #{momentId}
+          AND sender_id = #{senderId}
+          AND type = #{type}
+          AND content = #{oldContent}
+    </update>
+
+</mapper>

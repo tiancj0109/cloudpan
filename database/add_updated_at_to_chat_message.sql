@@ -1,0 +1,2 @@
+ALTER TABLE chat_message ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+UPDATE chat_message SET updated_at = created_at WHERE updated_at IS NULL;

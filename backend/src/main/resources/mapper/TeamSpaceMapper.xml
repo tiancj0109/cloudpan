@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cloudpan.mapper.TeamSpaceMapper">
+    <resultMap id="BaseResultMap" type="com.cloudpan.entity.TeamSpace">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="name" property="name" jdbcType="VARCHAR"/>
+        <result column="owner_id" property="ownerId" jdbcType="BIGINT"/>
+        <result column="root_folder_id" property="rootFolderId" jdbcType="BIGINT"/>
+        <result column="created_at" property="createdAt" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.cloudpan.entity.TeamSpace" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO team_space (name, owner_id, root_folder_id, created_at)
+        VALUES (#{name}, #{ownerId}, #{rootFolderId}, NOW())
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM team_space WHERE id = #{id}
+    </select>
+    
+    <select id="findByOwnerId" resultMap="BaseResultMap">
+        SELECT * FROM team_space WHERE owner_id = #{ownerId}
+    </select>
+
+    <select id="findJoinedTeams" resultMap="BaseResultMap">
+        SELECT t.* FROM team_space t
+        INNER JOIN team_member m ON t.id = m.team_id
+        WHERE m.user_id = #{userId}
+        ORDER BY t.created_at DESC
+    </select>
+
+    <update id="update" parameterType="com.cloudpan.entity.TeamSpace">
+        UPDATE team_space
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="rootFolderId != null">root_folder_id = #{rootFolderId},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM team_space WHERE id = #{id}
+    </delete>
+</mapper>

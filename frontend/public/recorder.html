@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安全录音中转</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            text-align: center;
+        }
+        h2 { margin-top: 0; color: #333; }
+        p { color: #666; margin-bottom: 20px; }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+            margin: 0 10px;
+        }
+        .btn-primary {
+            background-color: #1890ff;
+            color: white;
+        }
+        .btn-primary:hover { background-color: #40a9ff; }
+        .btn-danger {
+            background-color: #ff4d4f;
+            color: white;
+        }
+        .btn-danger:hover { background-color: #ff7875; }
+        .btn:disabled {
+            background-color: #d9d9d9;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #1890ff;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>安全录音中转</h2>
+        <p>点击下方按钮开始录音，完成后自动返回聊天窗口。</p>
+        
+        <div id="controls">
+            <button id="startBtn" class="btn btn-primary">开始录音</button>
+            <button id="stopBtn" class="btn btn-danger" disabled>停止并发送</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+
+        startBtn.onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = () => {
+                        const base64data = reader.result;
+                        // Send back to opener
+                        if (window.opener) {
+                            window.opener.postMessage({
+                                type: 'AUDIO_DATA_RECORDER',
+                                data: base64data,
+                                size: audioBlob.size
+                            }, '*');
+                            statusDiv.innerText = '发送成功！正在关闭...';
+                            setTimeout(() => window.close(), 1000);
+                        } else {
+                            statusDiv.innerText = '错误：找不到父窗口';
+                        }
+                    };
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusDiv.innerText = '正在录音...';
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerText = '无法访问麦克风: ' + err.message;
+            }
+        };
+
+        stopBtn.onclick = () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                statusDiv.innerText = '处理中...';
+            }
+        };
+    </script>
+</body>
+</html>

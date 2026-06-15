@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/cloudpan?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: zhongxinyi
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      max-file-size: 1024MB
+      max-request-size: 1024MB
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+cloudpan:
+  storage:
+    local-path: cloudpan-storage # 相对路径，兼容Windows和Linux，将在运行目录下创建
+    chat-path: uploads # 聊天文件存储路径
+  jwt:
+    secret: cloudpanSecretKey123456
+    expiration: 864000000 # 10 days
+
+logging:
+  level:
+    com.cloudpan: DEBUG

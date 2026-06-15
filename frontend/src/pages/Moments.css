@@ -1,0 +1,17 @@
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.moment-item {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.load-more-btn {
+    transition: all 0.3s;
+}
+
+.load-more-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}

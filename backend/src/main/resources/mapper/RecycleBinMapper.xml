@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cloudpan.mapper.RecycleBinMapper">
+    <resultMap id="BaseResultMap" type="com.cloudpan.entity.RecycleBin">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="user_id" property="userId" jdbcType="BIGINT"/>
+        <result column="file_id" property="fileId" jdbcType="BIGINT"/>
+        <result column="original_parent_id" property="originalParentId" jdbcType="BIGINT"/>
+        <result column="deleted_at" property="deletedAt" jdbcType="TIMESTAMP"/>
+        <result column="expire_at" property="expireAt" jdbcType="TIMESTAMP"/>
+        <result column="filename" property="filename" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.cloudpan.entity.RecycleBin" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO recycle_bin (user_id, file_id, original_parent_id, deleted_at, expire_at)
+        VALUES (#{userId}, #{fileId}, #{originalParentId}, NOW(), #{expireAt})
+    </insert>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT r.*, f.filename 
+        FROM recycle_bin r
+        LEFT JOIN file_info f ON r.file_id = f.id
+        WHERE r.user_id = #{userId} 
+        ORDER BY r.deleted_at DESC
+    </select>
+    
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM recycle_bin WHERE id = #{id}
+    </select>
+    
+    <select id="findByFileId" resultMap="BaseResultMap">
+        SELECT * FROM recycle_bin WHERE file_id = #{fileId}
+    </select>
+    
+    <delete id="deleteById">
+        DELETE FROM recycle_bin WHERE id = #{id}
+    </delete>
+</mapper>

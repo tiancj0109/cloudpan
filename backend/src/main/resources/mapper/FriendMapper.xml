@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cloudpan.mapper.FriendMapper">
+    <resultMap id="BaseResultMap" type="com.cloudpan.entity.Friend">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="user_id" property="userId" jdbcType="BIGINT"/>
+        <result column="friend_id" property="friendId" jdbcType="BIGINT"/>
+        <result column="status" property="status" jdbcType="INTEGER"/>
+        <result column="action_user_id" property="actionUserId" jdbcType="BIGINT"/>
+        <result column="created_at" property="createdAt" jdbcType="TIMESTAMP"/>
+        <result column="updated_at" property="updatedAt" jdbcType="TIMESTAMP"/>
+        <result column="friend_username" property="friendUsername" jdbcType="VARCHAR"/>
+        <result column="friend_avatar" property="friendAvatar" jdbcType="VARCHAR"/>
+        <result column="friend_email" property="friendEmail" jdbcType="VARCHAR"/>
+        <result column="friend_role" property="friendRole" jdbcType="VARCHAR"/>
+        <result column="friend_signature" property="friendSignature" jdbcType="VARCHAR"/>
+        <result column="friend_created_at" property="friendCreatedAt" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.cloudpan.entity.Friend" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO friend (user_id, friend_id, status, action_user_id, created_at, updated_at)
+        VALUES (#{userId}, #{friendId}, #{status}, #{actionUserId}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.cloudpan.entity.Friend">
+        UPDATE friend
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="actionUserId != null">action_user_id = #{actionUserId},</if>
+            <if test="isTop != null">is_top = #{isTop},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM friend
+        WHERE (user_id = #{userId} AND friend_id = #{friendId})
+           OR (user_id = #{friendId} AND friend_id = #{userId})
+    </delete>
+
+    <select id="findByUsers" resultMap="BaseResultMap">
+        SELECT f.*, u.username as friend_username, u.avatar as friend_avatar, u.email as friend_email, u.signature as friend_signature
+        FROM friend f
+        JOIN user u ON (f.friend_id = u.id AND f.user_id = #{userId}) OR (f.user_id = u.id AND f.friend_id = #{userId})
+        WHERE (f.user_id = #{userId} AND f.friend_id = #{friendId})
+           OR (f.user_id = #{friendId} AND f.friend_id = #{userId})
+        LIMIT 1
+    </select>
+
+    <select id="findListByUserId" resultMap="BaseResultMap">
+        SELECT f.id, f.status, f.action_user_id, f.created_at, f.updated_at, f.is_top,
+               #{userId} as user_id,
+               IF(f.user_id = #{userId}, f.friend_id, f.user_id) as friend_id,
+               u.username as friend_username, u.avatar as friend_avatar, u.email as friend_email,
+               u.role as friend_role, u.signature as friend_signature, u.created_at as friend_created_at,
+               (SELECT COUNT(*) FROM chat_message m 
+                WHERE m.sender_id = IF(f.user_id = #{userId}, f.friend_id, f.user_id) 
+                  AND m.receiver_id = #{userId} 
+                  AND m.status = 0) as unreadCount,
+               (SELECT m.created_at FROM chat_message m 
+                WHERE (m.sender_id = f.user_id AND m.receiver_id = f.friend_id) OR (m.sender_id = f.friend_id AND m.receiver_id = f.user_id)
+                ORDER BY m.created_at DESC LIMIT 1) as lastMessageTime
+        FROM friend f
+        JOIN user u ON (f.user_id = #{userId} AND u.id = f.friend_id) OR (f.friend_id = #{userId} AND u.id = f.user_id)
+        WHERE (f.user_id = #{userId} OR f.friend_id = #{userId})
+          AND f.status = 1
+        ORDER BY f.is_top DESC, lastMessageTime DESC
+    </select>
+
+    <select id="findRequestsByUserId" resultMap="BaseResultMap">
+        SELECT f.id, f.status, f.action_user_id, f.created_at, f.updated_at,
+               #{userId} as user_id,
+               f.user_id as friend_id,
+               u.username as friend_username, u.avatar as friend_avatar, u.email as friend_email, u.signature as friend_signature
+        FROM friend f
+        JOIN user u ON u.id = f.action_user_id
+        WHERE f.friend_id = #{userId} AND f.status = 0
+    </select>
+    
+    <select id="findDeleteRequestsByUserId" resultMap="BaseResultMap">
+         SELECT f.id, f.status, f.action_user_id, f.created_at, f.updated_at,
+                #{userId} as user_id,
+                IF(f.user_id = #{userId}, f.friend_id, f.user_id) as friend_id,
+                u.username as friend_username, u.avatar as friend_avatar, u.email as friend_email, u.signature as friend_signature
+        FROM friend f
+        JOIN user u ON u.id = f.action_user_id
+        WHERE (f.user_id = #{userId} OR f.friend_id = #{userId}) 
+          AND f.status = 2 
+          AND f.action_user_id != #{userId}
+    </select>
+</mapper>

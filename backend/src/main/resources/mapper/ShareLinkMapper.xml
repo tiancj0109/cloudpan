@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cloudpan.mapper.ShareLinkMapper">
+    <resultMap id="BaseResultMap" type="com.cloudpan.entity.ShareLink">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="user_id" property="userId" jdbcType="BIGINT"/>
+        <result column="file_id" property="fileId" jdbcType="BIGINT"/>
+        <result column="share_code" property="shareCode" jdbcType="VARCHAR"/>
+        <result column="access_code" property="accessCode" jdbcType="VARCHAR"/>
+        <result column="permission" property="permission" jdbcType="INTEGER"/>
+        <result column="expire_time" property="expireTime" jdbcType="TIMESTAMP"/>
+        <result column="visit_count" property="visitCount" jdbcType="INTEGER"/>
+        <result column="download_count" property="downloadCount" jdbcType="INTEGER"/>
+        <result column="created_at" property="createdAt" jdbcType="TIMESTAMP"/>
+        <result column="filename" property="filename" jdbcType="VARCHAR"/>
+        <result column="username" property="username" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.cloudpan.entity.ShareLink" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO share_link (user_id, file_id, share_code, access_code, permission, expire_time, created_at)
+        VALUES (#{userId}, #{fileId}, #{shareCode}, #{accessCode}, #{permission}, #{expireTime}, NOW())
+    </insert>
+
+    <select id="findByShareCode" resultMap="BaseResultMap">
+        SELECT s.*, f.filename, u.username
+        FROM share_link s
+        LEFT JOIN file_info f ON s.file_id = f.id
+        LEFT JOIN user u ON s.user_id = u.id
+        WHERE s.share_code = #{shareCode}
+    </select>
+    
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT s.*, f.filename, u.username
+        FROM share_link s
+        LEFT JOIN file_info f ON s.file_id = f.id
+        LEFT JOIN user u ON s.user_id = u.id
+        WHERE s.user_id = #{userId} 
+        ORDER BY s.created_at DESC
+    </select>
+    
+    <delete id="deleteById">
+        DELETE FROM share_link WHERE id = #{id}
+    </delete>
+    
+    <update id="incrementVisitCount">
+        UPDATE share_link SET visit_count = visit_count + 1 WHERE id = #{id}
+    </update>
+    
+    <update id="incrementDownloadCount">
+        UPDATE share_link SET download_count = download_count + 1 WHERE id = #{id}
+    </update>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM share_link WHERE id = #{id}
+    </select>
+</mapper>
