@@ -13,6 +13,9 @@ public interface ChatService {
     java.io.File getFile(Long messageId);
     java.io.File getThumbFile(Long messageId);
     List<ChatMessage> getMediaFiles(Long userId, Long friendId, Long groupId);
+    List<ChatMessage> getAllFiles(Long userId, Long friendId, Long groupId);
+    List<ChatMessage> searchHistory(Long userId, Long friendId, Long groupId, String keyword);
+    List<ChatMessage> searchAll(Long userId, String keyword);
     void recallMessage(Long userId, Long messageId);
     
     // Group Chat

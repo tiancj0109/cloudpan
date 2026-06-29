@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import './FriendChat.css';
-import { Layout, List, Avatar, Input, Button, Upload, message, Dropdown, Menu, Modal, Image, Tabs, Badge, Drawer, Progress, Popover } from 'antd';
-import { UserOutlined, SendOutlined, PictureOutlined, VideoCameraOutlined, AudioOutlined, MoreOutlined, FileImageOutlined, PaperClipOutlined, FileOutlined, ArrowLeftOutlined, TeamOutlined, PlusOutlined, DeleteOutlined, SettingOutlined, UploadOutlined, LoadingOutlined, EyeOutlined, DownloadOutlined, PhoneOutlined } from '@ant-design/icons';
+import { Layout, List, Avatar, Input, Button, Upload, message, Dropdown, Menu, Modal, Image, Tabs, Badge, Drawer, Progress, Popover, Spin } from 'antd';
+import { UserOutlined, SendOutlined, PictureOutlined, VideoCameraOutlined, AudioOutlined, MoreOutlined, FileImageOutlined, PaperClipOutlined, FileOutlined, ArrowLeftOutlined, TeamOutlined, PlusOutlined, DeleteOutlined, SettingOutlined, UploadOutlined, LoadingOutlined, EyeOutlined, DownloadOutlined, PhoneOutlined, SearchOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
 import api from '../utils/api';
 import usePageNotification from '../hooks/usePageNotification';
@@ -22,6 +22,23 @@ const FriendChat = () => {
     const [activeTab, setActiveTab] = useState('friend'); // 'friend' for friend, 'group' for group
     const [createGroupVisible, setCreateGroupVisible] = useState(false);
     const [groupName, setGroupName] = useState('');
+
+    // State for Chat Search
+    const [chatSearchVisible, setChatSearchVisible] = useState(false);
+    const [chatSearchKeyword, setChatSearchKeyword] = useState('');
+    const [chatSearchResults, setChatSearchResults] = useState([]);
+    const [chatSearchLoading, setChatSearchLoading] = useState(false);
+
+    // State for File Management
+    const [fileManageVisible, setFileManageVisible] = useState(false);
+    const [fileManageList, setFileManageList] = useState([]);
+    const [fileManageLoading, setFileManageLoading] = useState(false);
+
+    // State for Global Search
+    const [globalSearchVisible, setGlobalSearchVisible] = useState(false);
+    const [globalSearchKeyword, setGlobalSearchKeyword] = useState('');
+    const [globalSearchResults, setGlobalSearchResults] = useState([]);
+    const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
 
     // console.log('FriendChat Render, Location:', location);
 
@@ -295,6 +312,59 @@ const FriendChat = () => {
             const res = await api.get('/group/list');
             if (res.code === 200) setGroups(res.data);
         } catch (err) { }
+    };
+
+    const handleSearchChat = async (keyword) => {
+        if (!keyword || !keyword.trim()) return;
+        setChatSearchLoading(true);
+        try {
+            let url = `/chat/search?keyword=${encodeURIComponent(keyword.trim())}`;
+            if (activeFriend) url += `&friendId=${getFriendId(activeFriend)}`;
+            if (activeGroup) url += `&groupId=${activeGroup.id}`;
+            const res = await api.get(url);
+            if (res.code === 200) {
+                setChatSearchResults(res.data);
+            }
+        } catch (e) {
+            message.error('搜索失败');
+        } finally {
+            setChatSearchLoading(false);
+        }
+    };
+
+    const handleLoadFiles = async () => {
+        setFileManageLoading(true);
+        try {
+            let url = '/chat/files?';
+            if (activeFriend) url += `friendId=${getFriendId(activeFriend)}`;
+            if (activeGroup) url += `groupId=${activeGroup.id}`;
+            const res = await api.get(url);
+            if (res.code === 200) {
+                setFileManageList(res.data);
+            }
+        } catch (e) {
+            message.error('加载文件失败');
+        } finally {
+            setFileManageLoading(false);
+        }
+    };
+
+    const handleGlobalSearch = async (keyword) => {
+        if (!keyword || !keyword.trim()) {
+            setGlobalSearchResults([]);
+            return;
+        }
+        setGlobalSearchLoading(true);
+        try {
+            const res = await api.get(`/chat/searchAll?keyword=${encodeURIComponent(keyword.trim())}`);
+            if (res.code === 200) {
+                setGlobalSearchResults(res.data);
+            }
+        } catch (e) {
+            message.error('全局搜索失败');
+        } finally {
+            setGlobalSearchLoading(false);
+        }
     };
 
     const fetchHistory = async (friendId, groupId, pageNum = 1) => {
@@ -1247,14 +1317,20 @@ const FriendChat = () => {
                     })}>
                         好友信息
                     </Menu.Item>
+                    <Menu.Item key="search_chat" icon={<SearchOutlined />} onClick={() => setChatSearchVisible(true)}>
+                        查找聊天记录
+                    </Menu.Item>
                     <Menu.Item key="moments" icon={<PictureOutlined />} onClick={() => {
                         api.post('/moments/read').catch(e => console.error(e));
                         navigate(`/moments?userId=${getFriendId(activeFriend)}`);
                     }}>
                         朋友圈
                     </Menu.Item>
-                    <Menu.Item key="2" icon={<FileImageOutlined />} onClick={() => navigate('/friend/manage')}>
-                        媒体文件
+                    <Menu.Item key="2" icon={<FolderOpenOutlined />} onClick={() => {
+                        setFileManageVisible(true);
+                        handleLoadFiles();
+                    }}>
+                        文件管理
                     </Menu.Item>
                     <Menu.Item key="3" danger icon={<MoreOutlined />} onClick={() => {
                         const friendId = getFriendId(activeFriend);
@@ -1277,16 +1353,20 @@ const FriendChat = () => {
             )}
             {activeGroup && (
                 <>
+                    <Menu.Item key="search_chat_group" icon={<SearchOutlined />} onClick={() => setChatSearchVisible(true)}>
+                        查找聊天记录
+                    </Menu.Item>
                     <Menu.Item key="g1" icon={<TeamOutlined />} onClick={() => {
                         fetchGroupMembers(activeGroup.id);
                         setMembersVisible(true);
                     }}>
                         群组成员
                     </Menu.Item>
-                    <Menu.Item key="g_media" icon={<PictureOutlined />} onClick={() => {
-                        navigate('/friend/manage', { state: { activeTab: '3', groupId: activeGroup.id } });
+                    <Menu.Item key="g_media" icon={<FolderOpenOutlined />} onClick={() => {
+                        setFileManageVisible(true);
+                        handleLoadFiles();
                     }}>
-                        媒体文件
+                        文件管理
                     </Menu.Item>
                     <Menu.Item key="g2" icon={<PlusOutlined />} onClick={() => {
                         setInviteVisible(true);
@@ -1557,6 +1637,19 @@ const FriendChat = () => {
                 onTouchEnd={onTouchEnd}
             >
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f0f0f0' }}>
+                        <Input.Search 
+                            placeholder="全局搜索聊天记录" 
+                            onSearch={(val) => {
+                                setGlobalSearchKeyword(val);
+                                if(val) {
+                                    setGlobalSearchVisible(true);
+                                    handleGlobalSearch(val);
+                                }
+                            }} 
+                            allowClear
+                        />
+                    </div>
                     <div style={{ display: 'flex', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
                         <div
                             style={{ flex: 1, textAlign: 'center', padding: '16px', cursor: 'pointer', borderBottom: activeTab === 'friend' ? '2px solid #1890ff' : 'none', color: activeTab === 'friend' ? '#1890ff' : '#000' }}
@@ -2065,6 +2158,89 @@ const FriendChat = () => {
                 currentUserId={currentUserId}
                 friends={friends}
             />
+
+            <Drawer title="查找聊天记录" placement="right" onClose={() => setChatSearchVisible(false)} visible={chatSearchVisible} width={350}>
+                <Input.Search placeholder="搜索关键字" onSearch={handleSearchChat} style={{ marginBottom: 16 }} allowClear />
+                <Spin spinning={chatSearchLoading}>
+                    <List
+                        dataSource={chatSearchResults}
+                        renderItem={item => (
+                            <List.Item>
+                                <List.Item.Meta
+                                    avatar={<Avatar src={`/cloudpan-api/auth/avatar/${item.senderId}`} />}
+                                    title={<div>{item.senderUsername} <span style={{fontSize: 12, color: '#999', float: 'right'}}>{formatTime(item.createdAt)}</span></div>}
+                                    description={<div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333' }}>{item.content}</div>}
+                                />
+                            </List.Item>
+                        )}
+                        locale={{ emptyText: '没有找到匹配的消息' }}
+                    />
+                </Spin>
+            </Drawer>
+
+            <Drawer title="文件管理" placement="right" onClose={() => setFileManageVisible(false)} visible={fileManageVisible} width={400}>
+                <Spin spinning={fileManageLoading}>
+                    <List
+                        dataSource={fileManageList}
+                        renderItem={item => (
+                            <List.Item
+                                actions={[
+                                    <a href={`/cloudpan-api/chat/file/${item.id}`} target="_blank" rel="noopener noreferrer">下载</a>
+                                ]}
+                            >
+                                <List.Item.Meta
+                                    avatar={<FileOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
+                                    title={item.content || '文件'}
+                                    description={<>{item.senderUsername} · {formatTime(item.createdAt)}</>}
+                                />
+                            </List.Item>
+                        )}
+                        locale={{ emptyText: '暂无文件' }}
+                    />
+                </Spin>
+            </Drawer>
+
+            <Drawer title="全局搜索结果" placement="left" onClose={() => setGlobalSearchVisible(false)} visible={globalSearchVisible} width={400}>
+                <Input.Search 
+                    placeholder="全局搜索聊天记录" 
+                    defaultValue={globalSearchKeyword}
+                    onSearch={handleGlobalSearch} 
+                    style={{ marginBottom: 16 }} 
+                    allowClear 
+                />
+                <Spin spinning={globalSearchLoading}>
+                    <List
+                        dataSource={globalSearchResults}
+                        renderItem={item => (
+                            <List.Item style={{ cursor: 'pointer' }} onClick={() => {
+                                setGlobalSearchVisible(false);
+                                if (item.chatType === 'group') {
+                                    const targetGroup = groups.find(g => g.id === item.chatId);
+                                    if (targetGroup) {
+                                        setActiveGroup(targetGroup);
+                                        setActiveFriend(null);
+                                        setActiveTab('group');
+                                    }
+                                } else {
+                                    const targetFriend = friends.find(f => getFriendId(f) === item.chatId);
+                                    if (targetFriend) {
+                                        setActiveFriend(targetFriend);
+                                        setActiveGroup(null);
+                                        setActiveTab('friend');
+                                    }
+                                }
+                            }}>
+                                <List.Item.Meta
+                                    avatar={<Avatar src={`/cloudpan-api/auth/avatar/${item.senderId}`} />}
+                                    title={<div>{item.senderUsername} <span style={{fontSize: 12, color: '#999'}}>在 {item.chatName}</span> <span style={{fontSize: 12, color: '#999', float: 'right'}}>{formatTime(item.createdAt)}</span></div>}
+                                    description={<div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333' }}>{item.content}</div>}
+                                />
+                            </List.Item>
+                        )}
+                        locale={{ emptyText: '没有找到匹配的消息' }}
+                    />
+                </Spin>
+            </Drawer>
         </Layout >
     );
 };

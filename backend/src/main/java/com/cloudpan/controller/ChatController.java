@@ -125,6 +125,36 @@ public class ChatController {
         return success(list);
     }
 
+    @GetMapping("/files")
+    public Map<String, Object> getFiles(@RequestAttribute("userId") Long userId,
+                                        @RequestParam(value = "friendId", required = false) Long friendId,
+                                        @RequestParam(value = "groupId", required = false) Long groupId) {
+        List<ChatMessage> list = chatService.getAllFiles(userId, friendId, groupId);
+        return success(list);
+    }
+
+    @GetMapping("/search")
+    public Map<String, Object> searchHistory(@RequestAttribute("userId") Long userId,
+                                             @RequestParam(value = "friendId", required = false) Long friendId,
+                                             @RequestParam(value = "groupId", required = false) Long groupId,
+                                             @RequestParam("keyword") String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return success(new java.util.ArrayList<>());
+        }
+        List<ChatMessage> list = chatService.searchHistory(userId, friendId, groupId, keyword);
+        return success(list);
+    }
+
+    @GetMapping("/searchAll")
+    public Map<String, Object> searchAll(@RequestAttribute("userId") Long userId,
+                                         @RequestParam("keyword") String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return success(new java.util.ArrayList<>());
+        }
+        List<ChatMessage> list = chatService.searchAll(userId, keyword);
+        return success(list);
+    }
+
     @GetMapping("/unreadCount")
     public Map<String, Object> getTotalUnreadCount(@RequestAttribute("userId") Long userId) {
         int count = chatService.getTotalUnreadCount(userId);

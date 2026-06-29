@@ -22,6 +22,10 @@ public interface ChatMessageMapper {
     ChatMessage findById(@Param("id") Long id);
     List<ChatMessage> findMediaFiles(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("groupId") Long groupId);
     List<ChatMessage> findAllFiles(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("groupId") Long groupId);
+    
+    List<ChatMessage> searchHistory(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("groupId") Long groupId, @Param("keyword") String keyword);
+    List<ChatMessage> searchAll(@Param("userId") Long userId, @Param("keyword") String keyword);
+    
     int countTotalUnread(@Param("userId") Long userId);
     int countGroupUnread(@Param("groupId") Long groupId, @Param("lastReadMessageId") Long lastReadMessageId, @Param("userId") Long userId);
 }

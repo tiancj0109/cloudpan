@@ -179,6 +179,21 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    public List<ChatMessage> getAllFiles(Long userId, Long friendId, Long groupId) {
+        return chatMessageMapper.findAllFiles(userId, friendId, groupId);
+    }
+
+    @Override
+    public List<ChatMessage> searchHistory(Long userId, Long friendId, Long groupId, String keyword) {
+        return chatMessageMapper.searchHistory(userId, friendId, groupId, keyword);
+    }
+
+    @Override
+    public List<ChatMessage> searchAll(Long userId, String keyword) {
+        return chatMessageMapper.searchAll(userId, keyword);
+    }
+
+    @Override
     public com.cloudpan.entity.ChatGroup createGroup(Long ownerId, String name, List<Long> memberIds) {
         com.cloudpan.entity.ChatGroup group = new com.cloudpan.entity.ChatGroup();
         group.setName(name);

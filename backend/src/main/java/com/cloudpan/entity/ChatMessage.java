@@ -23,6 +23,9 @@ public class ChatMessage {
     // Transient fields
     private String senderUsername;
     private String senderAvatar;
+    private String chatName;
+    private String chatType;
+    private Long chatId;
     
     // Transient fields for reply
     private String replyContent;
@@ -61,6 +64,12 @@ public class ChatMessage {
     public void setSenderUsername(String senderUsername) { this.senderUsername = senderUsername; }
     public String getSenderAvatar() { return senderAvatar; }
     public void setSenderAvatar(String senderAvatar) { this.senderAvatar = senderAvatar; }
+    public String getChatName() { return chatName; }
+    public void setChatName(String chatName) { this.chatName = chatName; }
+    public String getChatType() { return chatType; }
+    public void setChatType(String chatType) { this.chatType = chatType; }
+    public Long getChatId() { return chatId; }
+    public void setChatId(Long chatId) { this.chatId = chatId; }
     public String getReplyContent() { return replyContent; }
     public void setReplyContent(String replyContent) { this.replyContent = replyContent; }
     public String getReplyType() { return replyType; }
