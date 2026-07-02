@@ -20,4 +20,17 @@ module.exports = function (app) {
             }
         })
     );
+    app.use(
+        createProxyMiddleware('/security-api', {
+            target: 'http://127.0.0.1',
+            changeOrigin: true,
+            logLevel: 'debug',
+            onProxyReq: function (proxyReq, req, res) {
+                console.log('Proxying security-api:', req.url, '->', proxyReq.path);
+            },
+            onError: function (err, req, res) {
+                console.error('Proxy error security-api:', err);
+            }
+        })
+    );
 };

@@ -3,6 +3,7 @@ import './FriendChat.css';
 import { Layout, List, Avatar, Input, Button, Upload, message, Dropdown, Menu, Modal, Image, Tabs, Badge, Drawer, Progress, Popover, Spin } from 'antd';
 import { UserOutlined, SendOutlined, PictureOutlined, VideoCameraOutlined, AudioOutlined, MoreOutlined, FileImageOutlined, PaperClipOutlined, FileOutlined, ArrowLeftOutlined, TeamOutlined, PlusOutlined, DeleteOutlined, SettingOutlined, UploadOutlined, LoadingOutlined, EyeOutlined, DownloadOutlined, PhoneOutlined, SearchOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
+import axios from 'axios';
 import api from '../utils/api';
 import usePageNotification from '../hooks/usePageNotification';
 import UserProfileModal from '../components/UserProfileModal';
@@ -531,6 +532,62 @@ const FriendChat = () => {
         }
 
         setIsSending(true); // Start loading immediately
+
+        // 文本内容安全审核 (Content Security Audit)
+        try {
+            const checkRes = await axios.post('/security-api/api/v1/text/check', {
+                text: inputText
+            });
+            if (checkRes && checkRes.data) {
+                const resData = checkRes.data;
+                // 优先读取 nested data (即 resData.data)，其次使用外层对象作为兜底
+                const auditResult = resData.data || resData;
+                
+                // 风险值拦截阈值设定（超过或等于 80 则强制拦截）
+                const RISK_THRESHOLD = 80;
+                
+                const isBlocked = (auditResult.status && (auditResult.status === 'block' || auditResult.status === 'review')) ||
+                                  (auditResult.suggestion && (auditResult.suggestion === 'block' || auditResult.suggestion === 'review')) ||
+                                  (auditResult.safe === false) ||
+                                  (auditResult.is_safe === false) ||
+                                  (auditResult.block === true) ||
+                                  (auditResult.pass === false) ||
+                                  (auditResult.action === 'block') ||
+                                  (typeof auditResult.risk === 'number' && auditResult.risk >= RISK_THRESHOLD);
+
+                if (isBlocked) {
+                    const keywordsStr = (auditResult.keywords && auditResult.keywords.length > 0)
+                        ? ` (敏感词: ${auditResult.keywords.join(', ')})`
+                        : '';
+                    const riskStr = (typeof auditResult.risk === 'number')
+                        ? ` (风险值: ${auditResult.risk})`
+                        : '';
+                    message.error(`消息发送失败：内容可能包含违规或敏感信息${keywordsStr}${riskStr}`);
+                    setIsSending(false);
+                    return;
+                }
+            }
+        } catch (err) {
+            console.error('Content safety check error:', err);
+            if (err.response) {
+                if (err.response.status === 422) {
+                    message.error('消息审核失败：文本格式不合法');
+                    setIsSending(false);
+                    return;
+                }
+                const errMsg = err.response.data?.detail?.map(d => d.msg).join(', ') || err.response.data?.message;
+                if (errMsg) {
+                    message.error(`消息审核未通过: ${errMsg}`);
+                } else {
+                    message.error('消息审核未通过，可能包含敏感词汇');
+                }
+                setIsSending(false);
+                return;
+            } else {
+                // 网络连接失败等异常情况，友好提示并允许发送 (Fail-Safe)
+                message.warning('安全审核服务连接失败，已跳过审核');
+            }
+        }
 
         let contentToSend = inputText;
 
