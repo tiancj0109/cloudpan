@@ -135,13 +135,178 @@ const FileList = () => {
 
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
-    const handleUpload = async ({ file, onSuccess, onError, onProgress }) => {
-        // Reuse the uploadFile logic, but we need to adapt it slightly or just call it
-        // Since uploadFile handles success message and refresh, we might want to keep handleUpload simple
-        // or refactor uploadFile to return a promise.
-        // Let's just call the api directly here or adapt.
-        // Actually, to keep it consistent, let's just use the logic inside uploadFile but we need to support the Antd Upload callbacks.
+    // Global folder cache for batch folder upload
+    const folderCache = React.useRef(new Map());
+    const pendingFiles = React.useRef([]);
+    const isProcessing = React.useRef(false);
 
+    // Process batch folder upload
+    const processBatchFolderUpload = async () => {
+        if (isProcessing.current || pendingFiles.current.length === 0) return;
+
+        isProcessing.current = true;
+        const files = [...pendingFiles.current];
+        pendingFiles.current = [];
+
+        try {
+            // Step 1: Analyze folder structure from all files
+            const folderStructure = new Map(); // path -> folder name
+            const fileMap = new Map(); // file -> full relative path
+
+            for (const file of files) {
+                const relativePath = file.webkitRelativePath || file.path;
+                if (!relativePath) continue;
+
+                fileMap.set(file, relativePath);
+
+                // Extract folder paths
+                const pathParts = relativePath.split('/');
+                if (pathParts.length > 1) {
+                    // Build folder path hierarchy
+                    for (let i = 0; i < pathParts.length - 1; i++) {
+                        const folderPath = pathParts.slice(0, i + 1).join('/');
+                        const folderName = pathParts[i];
+                        folderStructure.set(folderPath, folderName);
+                    }
+                }
+            }
+
+            // Step 2: Create folders in hierarchical order (sort by depth)
+            const sortedFolderPaths = Array.from(folderStructure.keys()).sort((a, b) => {
+                const depthA = a.split('/').length;
+                const depthB = b.split('/').length;
+                return depthA - depthB;
+            });
+
+            message.loading({ content: '正在创建文件夹结构...', key: 'folderUpload', duration: 0 });
+
+            for (const folderPath of sortedFolderPaths) {
+                const folderName = folderStructure.get(folderPath);
+                const parentPath = folderPath.split('/').slice(0, -1).join('/');
+
+                // Get parent folder ID
+                let currentParentId = parentId;
+                if (parentPath && folderCache.current.has(parentPath)) {
+                    currentParentId = folderCache.current.get(parentPath);
+                }
+
+                const cacheKey = `${currentParentId}-${folderName}`;
+
+                // Check cache
+                if (folderCache.current.has(cacheKey)) {
+                    folderCache.current.set(folderPath, folderCache.current.get(cacheKey));
+                    continue;
+                }
+
+                // Check if folder exists
+                try {
+                    const listRes = await api.get(`/file/list?parentId=${currentParentId}`);
+                    let existingFolder = null;
+                    if (listRes.code === 200) {
+                        existingFolder = listRes.data.find(f => f.filename === folderName && f.isFolder === 1);
+                    }
+
+                    if (existingFolder) {
+                        folderCache.current.set(cacheKey, existingFolder.id);
+                        folderCache.current.set(folderPath, existingFolder.id);
+                    } else {
+                        // Create new folder
+                        const res = await api.post('/file/folder', {
+                            name: folderName,
+                            parentId: currentParentId
+                        });
+
+                        if (res.code === 200) {
+                            folderCache.current.set(cacheKey, res.data.id);
+                            folderCache.current.set(folderPath, res.data.id);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`创建文件夹 ${folderName} 失败:`, error);
+                }
+            }
+
+            message.destroy('folderUpload');
+
+            // Step 3: Upload all files to their target folders
+            message.loading({ content: `正在上传 ${files.length} 个文件...`, key: 'fileUpload', duration: 0 });
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const file of files) {
+                const relativePath = fileMap.get(file);
+                if (!relativePath) {
+                    // Regular file without path
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('parentId', parentId);
+                    try {
+                        await api.post('/file/upload', formData);
+                        successCount++;
+                    } catch (error) {
+                        failCount++;
+                    }
+                    continue;
+                }
+
+                const pathParts = relativePath.split('/');
+                if (pathParts.length <= 1) {
+                    // File in root
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('parentId', parentId);
+                    try {
+                        await api.post('/file/upload', formData);
+                        successCount++;
+                    } catch (error) {
+                        failCount++;
+                    }
+                    continue;
+                }
+
+                // Get target folder ID
+                const targetFolderPath = pathParts.slice(0, -1).join('/');
+                const targetFolderId = folderCache.current.get(targetFolderPath) || parentId;
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('parentId', targetFolderId);
+
+                try {
+                    await api.post('/file/upload', formData);
+                    successCount++;
+                } catch (error) {
+                    failCount++;
+                }
+            }
+
+            message.destroy('fileUpload');
+
+            if (successCount > 0) {
+                message.success(`成功上传 ${successCount} 个文件`);
+                fetchFiles(parentId);
+            }
+            if (failCount > 0) {
+                message.error(`${failCount} 个文件上传失败`);
+            }
+
+        } catch (error) {
+            message.error('文件夹上传失败');
+            console.error(error);
+        } finally {
+            isProcessing.current = false;
+            folderCache.current.clear();
+
+            // Process remaining files if any
+            if (pendingFiles.current.length > 0) {
+                setTimeout(processBatchFolderUpload, 100);
+            }
+        }
+    };
+
+    // Handle regular file upload
+    const handleUpload = async ({ file, onSuccess, onError, onProgress }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('parentId', parentId);
@@ -160,6 +325,28 @@ const FileList = () => {
             message.error(`${file.name} 上传失败`);
             onError(error);
         }
+    };
+
+    // Handle folder upload - collect files and batch process
+    const handleFolderUpload = async ({ file, onSuccess, onError, onProgress }) => {
+        const relativePath = file.webkitRelativePath || file.path;
+
+        if (!relativePath) {
+            // Regular file upload
+            return handleUpload({ file, onSuccess, onError, onProgress });
+        }
+
+        // Add to pending queue
+        pendingFiles.current.push(file);
+
+        // Simulate progress for UI
+        onProgress({ percent: 0 });
+
+        // Trigger batch processing (will wait for all files to be collected)
+        setTimeout(() => {
+            processBatchFolderUpload();
+            onSuccess("queued");
+        }, 100);
     };
 
     const handleBatchDelete = async () => {
@@ -571,45 +758,226 @@ const FileList = () => {
         e.dataTransfer.dropEffect = 'move';
     };
 
-    const uploadFile = async (file, targetParentId) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('parentId', targetParentId);
+    // Helper function to recursively read dragged folder contents
+    const readDirectory = async (entry, path = '') => {
+        const files = [];
 
-        try {
-            await api.post('/file/upload', formData, {
-                onUploadProgress: (progressEvent) => {
-                    // Optional: handle progress if needed for individual files in a batch
-                },
+        if (entry.isFile) {
+            // Get the file
+            const file = await new Promise((resolve) => {
+                entry.file(resolve);
             });
-            message.success(`${file.name} 上传成功`);
-            fetchFiles(parentId); // Refresh current view
+            // Add relative path as a custom property
+            file.customRelativePath = path + file.name;
+            files.push(file);
+        } else if (entry.isDirectory) {
+            // Read directory contents
+            const reader = entry.createReader();
+            const entries = await new Promise((resolve) => {
+                reader.readEntries(resolve);
+            });
+
+            // Recursively read subdirectories
+            for (const childEntry of entries) {
+                const childFiles = await readDirectory(childEntry, path + entry.name + '/');
+                files.push(...childFiles);
+            }
+        }
+
+        return files;
+    };
+
+    // Batch process dragged files/folders
+    const batchUploadFiles = async (filesWithPaths, targetParentId) => {
+        try {
+            // Step 1: Analyze folder structure
+            const folderStructure = new Map();
+            const fileMap = new Map();
+
+            for (const file of filesWithPaths) {
+                const relativePath = file.customRelativePath || file.webkitRelativePath || file.path;
+                if (!relativePath) {
+                    fileMap.set(file, null); // No path, upload to targetParentId
+                    continue;
+                }
+
+                fileMap.set(file, relativePath);
+
+                // Extract folder paths
+                const pathParts = relativePath.split('/');
+                if (pathParts.length > 1) {
+                    for (let i = 0; i < pathParts.length - 1; i++) {
+                        const folderPath = pathParts.slice(0, i + 1).join('/');
+                        const folderName = pathParts[i];
+                        folderStructure.set(folderPath, folderName);
+                    }
+                }
+            }
+
+            // Step 2: Create folders in hierarchical order
+            const sortedFolderPaths = Array.from(folderStructure.keys()).sort((a, b) => {
+                const depthA = a.split('/').length;
+                const depthB = b.split('/').length;
+                return depthA - depthB;
+            });
+
+            if (sortedFolderPaths.length > 0) {
+                message.loading({ content: '正在创建文件夹结构...', key: 'dragFolderUpload', duration: 0 });
+            }
+
+            const localFolderCache = new Map();
+
+            for (const folderPath of sortedFolderPaths) {
+                const folderName = folderStructure.get(folderPath);
+                const parentPath = folderPath.split('/').slice(0, -1).join('/');
+
+                let currentParentId = targetParentId;
+                if (parentPath && localFolderCache.has(parentPath)) {
+                    currentParentId = localFolderCache.get(parentPath);
+                }
+
+                const cacheKey = `${currentParentId}-${folderName}`;
+
+                // Check cache
+                if (localFolderCache.has(cacheKey)) {
+                    localFolderCache.set(folderPath, localFolderCache.get(cacheKey));
+                    continue;
+                }
+
+                // Check if folder exists
+                try {
+                    const listRes = await api.get(`/file/list?parentId=${currentParentId}`);
+                    let existingFolder = null;
+                    if (listRes.code === 200) {
+                        existingFolder = listRes.data.find(f => f.filename === folderName && f.isFolder === 1);
+                    }
+
+                    if (existingFolder) {
+                        localFolderCache.set(cacheKey, existingFolder.id);
+                        localFolderCache.set(folderPath, existingFolder.id);
+                    } else {
+                        // Create new folder
+                        const res = await api.post('/file/folder', {
+                            name: folderName,
+                            parentId: currentParentId
+                        });
+
+                        if (res.code === 200) {
+                            localFolderCache.set(cacheKey, res.data.id);
+                            localFolderCache.set(folderPath, res.data.id);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`创建文件夹 ${folderName} 失败:`, error);
+                }
+            }
+
+            if (sortedFolderPaths.length > 0) {
+                message.destroy('dragFolderUpload');
+            }
+
+            // Step 3: Upload files
+            if (filesWithPaths.length > 0) {
+                message.loading({ content: `正在上传 ${filesWithPaths.length} 个文件...`, key: 'dragFileUpload', duration: 0 });
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const file of filesWithPaths) {
+                const relativePath = fileMap.get(file);
+
+                let uploadParentId = targetParentId;
+
+                if (relativePath) {
+                    const pathParts = relativePath.split('/');
+                    if (pathParts.length > 1) {
+                        const targetFolderPath = pathParts.slice(0, -1).join('/');
+                        uploadParentId = localFolderCache.get(targetFolderPath) || targetParentId;
+                    }
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('parentId', uploadParentId);
+
+                try {
+                    await api.post('/file/upload', formData);
+                    successCount++;
+                } catch (error) {
+                    failCount++;
+                }
+            }
+
+            if (filesWithPaths.length > 0) {
+                message.destroy('dragFileUpload');
+            }
+
+            if (successCount > 0) {
+                message.success(`成功上传 ${successCount} 个文件`);
+                fetchFiles(parentId);
+            }
+            if (failCount > 0) {
+                message.error(`${failCount} 个文件上传失败`);
+            }
+
         } catch (error) {
-            message.error(`${file.name} 上传失败`);
+            message.error('上传失败');
+            console.error(error);
         }
     };
 
     const handleDrop = async (e, targetFolder) => {
         e.preventDefault();
-        e.stopPropagation(); // Stop bubbling to container
+        e.stopPropagation();
 
-        // Check if it's a file upload from OS
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const files = Array.from(e.dataTransfer.files);
-            for (const file of files) {
-                uploadFile(file, targetFolder.id);
+        dragCounter.current = 0;
+        setIsDragOver(false);
+
+        const filesWithPaths = [];
+
+        // Check if it's a file/folder upload from OS
+        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            const items = Array.from(e.dataTransfer.items);
+
+            for (const item of items) {
+                if (item.kind === 'file') {
+                    const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+
+                    if (entry) {
+                        // Modern browser with webkitGetAsEntry support
+                        const files = await readDirectory(entry);
+                        filesWithPaths.push(...files);
+                    } else {
+                        // Fallback: just get the file
+                        const file = item.getAsFile();
+                        if (file) {
+                            filesWithPaths.push(file);
+                        }
+                    }
+                }
             }
-            // Reset drag state if dropped on folder
-            dragCounter.current = 0;
-            setIsDragOver(false);
+
+            if (filesWithPaths.length > 0) {
+                await batchUploadFiles(filesWithPaths, targetFolder.id);
+            }
             return;
         }
 
+        // Fallback: check dataTransfer.files
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const files = Array.from(e.dataTransfer.files);
+            filesWithPaths.push(...files);
+            await batchUploadFiles(filesWithPaths, targetFolder.id);
+            return;
+        }
+
+        // Handle internal drag (move files)
         const data = e.dataTransfer.getData('application/json');
         if (!data) return;
 
         const ids = JSON.parse(data);
-        if (ids.includes(targetFolder.id)) return; // Cannot drop into itself if it's in the list
+        if (ids.includes(targetFolder.id)) return;
 
         try {
             await api.post('/file/batch-move', {
@@ -666,12 +1034,41 @@ const FileList = () => {
             return;
         }
 
-        // Check if it's a file upload from OS
+        const filesWithPaths = [];
+
+        // Check if it's a file/folder upload from OS
+        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            const items = Array.from(e.dataTransfer.items);
+
+            for (const item of items) {
+                if (item.kind === 'file') {
+                    const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+
+                    if (entry) {
+                        // Modern browser with webkitGetAsEntry support
+                        const files = await readDirectory(entry);
+                        filesWithPaths.push(...files);
+                    } else {
+                        // Fallback: just get the file
+                        const file = item.getAsFile();
+                        if (file) {
+                            filesWithPaths.push(file);
+                        }
+                    }
+                }
+            }
+
+            if (filesWithPaths.length > 0) {
+                await batchUploadFiles(filesWithPaths, parentId);
+            }
+            return;
+        }
+
+        // Fallback: check dataTransfer.files
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             const files = Array.from(e.dataTransfer.files);
-            for (const file of files) {
-                uploadFile(file, parentId);
-            }
+            filesWithPaths.push(...files);
+            await batchUploadFiles(filesWithPaths, parentId);
         }
     };
 
@@ -729,13 +1126,27 @@ const FileList = () => {
             {isDragOver && (
                 <div className="rainbow-border">
                     <UploadOutlined style={{ fontSize: 48, color: '#1890ff', marginBottom: 16, zIndex: 1 }} />
-                    <span style={{ fontSize: 20, color: '#1890ff', fontWeight: 500, zIndex: 1 }}>松开鼠标开始上传</span>
+                    <span style={{ fontSize: 20, color: '#1890ff', fontWeight: 500, zIndex: 1 }}>
+                        松开鼠标上传文件/文件夹
+                    </span>
+                    <span style={{ fontSize: 14, color: '#666', marginTop: 8, zIndex: 1 }}>
+                        （文件夹拖拽支持取决于浏览器）
+                    </span>
                 </div>
             )}
             <div style={{ marginBottom: 16, display: 'flex', flexDirection: screens.md ? 'row' : 'column', justifyContent: 'space-between', gap: 10 }}>
                 <Space wrap>
                     <Upload customRequest={handleUpload} showUploadList={true} multiple={true}>
                         <Button type="primary" icon={<UploadOutlined />}>上传文件</Button>
+                    </Upload>
+                    <Upload
+                        customRequest={handleFolderUpload}
+                        showUploadList={true}
+                        multiple={true}
+                        directory
+                        webkitdirectory
+                    >
+                        <Button icon={<FolderAddOutlined />}>上传文件夹</Button>
                     </Upload>
                     <Button icon={<FolderAddOutlined />} onClick={() => setIsModalVisible(true)}>新建文件夹</Button>
                     {selectedRowKeys.length > 0 && (
