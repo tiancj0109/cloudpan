@@ -1475,6 +1475,22 @@ const FriendChat = () => {
                     )}
                 </>
             )}
+            <Menu.Item key="audit_toggle" onClick={e => e.domEvent.stopPropagation()} style={{ cursor: 'default' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+                     onClick={e => e.stopPropagation()}>
+                    <span>文本内容审核</span>
+                    <Switch
+                        size="small"
+                        checked={auditEnabled}
+                        onChange={checked => {
+                            setAuditEnabled(checked);
+                            localStorage.setItem('auditEnabled', checked ? 'true' : 'false');
+                        }}
+                        checkedChildren="开"
+                        unCheckedChildren="关"
+                    />
+                </div>
+            </Menu.Item>
         </Menu>
     );
 
@@ -1885,7 +1901,7 @@ const FriendChat = () => {
                             <div ref={messagesEndRef} />
                         </div>
                         <div style={{ padding: 20, borderTop: '1px solid #f0f0f0' }}>
-                            <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ marginBottom: 10 }}>
                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                                     <Upload showUploadList={false} beforeUpload={f => { handleFileUpload(f, 'IMAGE'); return false; }} accept="image/*" customRequest={() => { }}>
                                         <Button icon={<PictureOutlined />} type="text" title="发送图片" />
@@ -1951,18 +1967,6 @@ const FriendChat = () => {
                                             <Button icon={<span role="img" aria-label="emoji" style={{ fontSize: 16 }}>😊</span>} type="text" title="表情" />
                                         </Dropdown>
                                     )}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <span style={{ marginRight: 8, fontSize: 13, color: '#666' }}>文本内容审核</span>
-                                    <Switch
-                                        checked={auditEnabled}
-                                        onChange={checked => {
-                                            setAuditEnabled(checked);
-                                            localStorage.setItem('auditEnabled', checked ? 'true' : 'false');
-                                        }}
-                                        checkedChildren="开"
-                                        unCheckedChildren="关"
-                                    />
                                 </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
