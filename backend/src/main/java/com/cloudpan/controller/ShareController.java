@@ -68,8 +68,21 @@ public class ShareController {
         Integer permission = Integer.parseInt(params.getOrDefault("permission", 1).toString());
         String accessCode = (String) params.get("accessCode");
         // Simple expire time handling, e.g., days
-        Integer days = Integer.parseInt(params.getOrDefault("days", 7).toString());
-        Date expireTime = days == -1 ? null : new Date(System.currentTimeMillis() + days * 24 * 3600 * 1000L);
+        Integer days;
+        try {
+            Object daysObj = params.getOrDefault("days", 7);
+            String daysStr = daysObj != null ? daysObj.toString().trim() : "7";
+            days = daysStr.isEmpty() ? 7 : Integer.parseInt(daysStr);
+        } catch (NumberFormatException e) {
+            days = 7; // Fallback to default on invalid input
+        }
+        // Validate: days must be -1 (permanent), 0 (permanent), or positive
+        if (days <= 0 && days != -1) {
+            days = -1; // Treat 0 and negative values as permanent
+        }
+        // Use all-long arithmetic to prevent int overflow (fixes expire time
+        // wrapping to the past for large day counts like 25,000+)
+        Date expireTime = days == -1 ? null : new Date(System.currentTimeMillis() + days * 24L * 3600L * 1000L);
         
         ShareLink shareLink = shareService.createShare(userId, fileId, permission, expireTime, accessCode);
         Map<String, Object> result = new HashMap<>();
@@ -85,6 +98,13 @@ public class ShareController {
         if (shareLink == null) {
             result.put("code", 404);
             result.put("message", "Share not found");
+        } else if (shareLink.getExpireTime() != null && shareLink.getExpireTime().before(new Date())) {
+            // Share exists but has expired — tell the client explicitly
+            shareLink.setNeedAccessCode(shareLink.getAccessCode() != null && !shareLink.getAccessCode().isEmpty());
+            shareLink.setAccessCode(null);
+            result.put("code", 410); // HTTP 410 Gone
+            result.put("message", "此分享已过期");
+            result.put("data", shareLink);
         } else {
             // Mask access code for public view
             shareLink.setNeedAccessCode(shareLink.getAccessCode() != null && !shareLink.getAccessCode().isEmpty());

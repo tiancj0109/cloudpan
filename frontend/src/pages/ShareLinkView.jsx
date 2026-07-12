@@ -25,6 +25,10 @@ const ShareLinkView = () => {
                 if (!res.data.needAccessCode) {
                     setVerified(true);
                 }
+            } else if (res.code === 410) {
+                // Share has expired
+                setError(res.message || '此分享已过期');
+                setShareInfo(res.data);
             } else {
                 setError(res.message);
             }

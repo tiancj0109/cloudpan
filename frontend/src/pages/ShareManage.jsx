@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, message, Popconfirm, Grid, List } from 'antd';
+import { Table, Button, message, Popconfirm, Grid, List, Tag } from 'antd';
 import api from '../utils/api';
 import moment from 'moment';
 
@@ -35,12 +35,22 @@ const ShareManage = () => {
         }
     };
 
+    const isExpired = (expireTime) => {
+        if (!expireTime) return false; // Permanent
+        return new Date(expireTime) < new Date();
+    };
+
     const columns = [
         {
             title: '文件名',
             dataIndex: 'filename',
             key: 'filename',
-            render: (text) => <span style={{ fontWeight: 500 }}>{text}</span>
+            render: (text, record) => (
+                <span style={{ fontWeight: 500 }}>
+                    {text}
+                    {isExpired(record.expireTime) && <Tag color="red" style={{ marginLeft: 8 }}>已过期</Tag>}
+                </span>
+            )
         },
         {
             title: '分享码',
@@ -134,6 +144,7 @@ const ShareManage = () => {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ fontWeight: 'bold', marginRight: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
                                             {item.filename}
+                                            {isExpired(item.expireTime) && <Tag color="red" style={{ marginLeft: 4, fontSize: '11px' }}>已过期</Tag>}
                                         </div>
                                         <span>{item.shareCode}</span>
                                         <Button

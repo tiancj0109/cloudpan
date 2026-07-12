@@ -154,7 +154,7 @@ const FileList = () => {
             const fileMap = new Map(); // file -> full relative path
 
             for (const file of files) {
-                const relativePath = file.webkitRelativePath || file.path;
+                const relativePath = file._relativePath || file.webkitRelativePath || file.path;
                 if (!relativePath) continue;
 
                 fileMap.set(file, relativePath);
@@ -329,15 +329,22 @@ const FileList = () => {
 
     // Handle folder upload - collect files and batch process
     const handleFolderUpload = async ({ file, onSuccess, onError, onProgress }) => {
-        const relativePath = file.webkitRelativePath || file.path;
+        // Ant Design wraps File objects in UploadFile; extract the raw browser File
+        // to ensure formData.append uses the correct File.name (basename only, not the
+        // full webkitRelativePath like "dist/clipboard-ai-tool.exe")
+        const rawFile = file.originFileObj || file;
+        const relativePath = file.webkitRelativePath || rawFile.webkitRelativePath || file.path;
 
         if (!relativePath) {
             // Regular file upload
-            return handleUpload({ file, onSuccess, onError, onProgress });
+            return handleUpload({ file: rawFile, onSuccess, onError, onProgress });
         }
 
-        // Add to pending queue
-        pendingFiles.current.push(file);
+        // Preserve relative path on the raw file for downstream folder structure parsing
+        rawFile._relativePath = relativePath;
+
+        // Add raw File to pending queue (not the UploadFile wrapper)
+        pendingFiles.current.push(rawFile);
 
         // Simulate progress for UI
         onProgress({ percent: 0 });
@@ -441,9 +448,15 @@ const FileList = () => {
 
     const handleShare = async () => {
         try {
+            // Ensure days is a valid number; treat empty/zero/negative as -1 (permanent)
+            const daysValue = shareDays === '' || shareDays === null || shareDays === undefined
+                ? -1
+                : parseInt(shareDays, 10);
+            const validDays = (isNaN(daysValue) || daysValue <= 0) ? -1 : daysValue;
+
             const res = await api.post('/share/create', {
                 fileId: shareFileId,
-                days: shareDays,
+                days: validDays,
                 accessCode: shareAccessCode
             });
             if (res.code === 200) {
@@ -771,14 +784,22 @@ const FileList = () => {
             file.customRelativePath = path + file.name;
             files.push(file);
         } else if (entry.isDirectory) {
-            // Read directory contents
+            // Read directory contents — readEntries() only returns up to ~100
+            // entries per call, so we must loop until it returns an empty array.
             const reader = entry.createReader();
-            const entries = await new Promise((resolve) => {
+            const allEntries = [];
+            const readBatch = () => new Promise((resolve) => {
                 reader.readEntries(resolve);
             });
 
+            let batch;
+            do {
+                batch = await readBatch();
+                allEntries.push(...batch);
+            } while (batch.length > 0);
+
             // Recursively read subdirectories
-            for (const childEntry of entries) {
+            for (const childEntry of allEntries) {
                 const childFiles = await readDirectory(childEntry, path + entry.name + '/');
                 files.push(...childFiles);
             }
@@ -795,7 +816,7 @@ const FileList = () => {
             const fileMap = new Map();
 
             for (const file of filesWithPaths) {
-                const relativePath = file.customRelativePath || file.webkitRelativePath || file.path;
+                const relativePath = file.customRelativePath || file._relativePath || file.webkitRelativePath || file.path;
                 if (!relativePath) {
                     fileMap.set(file, null); // No path, upload to targetParentId
                     continue;
