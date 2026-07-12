@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import './FriendChat.css';
-import { Layout, List, Avatar, Input, Button, Upload, message, Dropdown, Menu, Modal, Image, Tabs, Badge, Drawer, Progress, Popover, Spin } from 'antd';
+import { Layout, List, Avatar, Input, Button, Upload, message, Dropdown, Menu, Modal, Image, Tabs, Badge, Drawer, Progress, Popover, Spin, Switch } from 'antd';
 import { UserOutlined, SendOutlined, PictureOutlined, VideoCameraOutlined, AudioOutlined, MoreOutlined, FileImageOutlined, PaperClipOutlined, FileOutlined, ArrowLeftOutlined, TeamOutlined, PlusOutlined, DeleteOutlined, SettingOutlined, UploadOutlined, LoadingOutlined, EyeOutlined, DownloadOutlined, PhoneOutlined, SearchOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
 import axios from 'axios';
@@ -79,6 +79,7 @@ const FriendChat = () => {
 
     const [recording, setRecording] = useState(false);
     const [isSending, setIsSending] = useState(false); // New sending state
+    const [auditEnabled, setAuditEnabled] = useState(() => localStorage.getItem('auditEnabled') === 'true');
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -534,58 +535,60 @@ const FriendChat = () => {
         setIsSending(true); // Start loading immediately
 
         // 文本内容安全审核 (Content Security Audit)
-        try {
-            const checkRes = await axios.post('/security-api/api/v1/text/check', {
-                text: inputText
-            });
-            if (checkRes && checkRes.data) {
-                const resData = checkRes.data;
-                // 优先读取 nested data (即 resData.data)，其次使用外层对象作为兜底
-                const auditResult = resData.data || resData;
-                
-                // 风险值拦截阈值设定（超过或等于 80 则强制拦截）
-                const RISK_THRESHOLD = 80;
-                
-                const isBlocked = (auditResult.status && (auditResult.status === 'block' || auditResult.status === 'review')) ||
-                                  (auditResult.suggestion && (auditResult.suggestion === 'block' || auditResult.suggestion === 'review')) ||
-                                  (auditResult.safe === false) ||
-                                  (auditResult.is_safe === false) ||
-                                  (auditResult.block === true) ||
-                                  (auditResult.pass === false) ||
-                                  (auditResult.action === 'block') ||
-                                  (typeof auditResult.risk === 'number' && auditResult.risk >= RISK_THRESHOLD);
+        if (auditEnabled) {
+            try {
+                const checkRes = await axios.post('/security-api/api/v1/text/check', {
+                    text: inputText
+                });
+                if (checkRes && checkRes.data) {
+                    const resData = checkRes.data;
+                    // 优先读取 nested data (即 resData.data)，其次使用外层对象作为兜底
+                    const auditResult = resData.data || resData;
+                    
+                    // 风险值拦截阈值设定（超过或等于 80 则强制拦截）
+                    const RISK_THRESHOLD = 80;
+                    
+                    const isBlocked = (auditResult.status && (auditResult.status === 'block' || auditResult.status === 'review')) ||
+                                      (auditResult.suggestion && (auditResult.suggestion === 'block' || auditResult.suggestion === 'review')) ||
+                                      (auditResult.safe === false) ||
+                                      (auditResult.is_safe === false) ||
+                                      (auditResult.block === true) ||
+                                      (auditResult.pass === false) ||
+                                      (auditResult.action === 'block') ||
+                                      (typeof auditResult.risk === 'number' && auditResult.risk >= RISK_THRESHOLD);
 
-                if (isBlocked) {
-                    const keywordsStr = (auditResult.keywords && auditResult.keywords.length > 0)
-                        ? ` (敏感词: ${auditResult.keywords.join(', ')})`
-                        : '';
-                    const riskStr = (typeof auditResult.risk === 'number')
-                        ? ` (风险值: ${auditResult.risk})`
-                        : '';
-                    message.error(`消息发送失败：内容可能包含违规或敏感信息${keywordsStr}${riskStr}`);
+                    if (isBlocked) {
+                        const keywordsStr = (auditResult.keywords && auditResult.keywords.length > 0)
+                            ? ` (敏感词: ${auditResult.keywords.join(', ')})`
+                            : '';
+                        const riskStr = (typeof auditResult.risk === 'number')
+                            ? ` (风险值: ${auditResult.risk})`
+                            : '';
+                        message.error(`消息发送失败：内容可能包含违规或敏感信息${keywordsStr}${riskStr}`);
+                        setIsSending(false);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Content safety check error:', err);
+                if (err.response) {
+                    if (err.response.status === 422) {
+                        message.error('消息审核失败：文本格式不合法');
+                        setIsSending(false);
+                        return;
+                    }
+                    const errMsg = err.response.data?.detail?.map(d => d.msg).join(', ') || err.response.data?.message;
+                    if (errMsg) {
+                        message.error(`消息审核未通过: ${errMsg}`);
+                    } else {
+                        message.error('消息审核未通过，可能包含敏感词汇');
+                    }
                     setIsSending(false);
                     return;
-                }
-            }
-        } catch (err) {
-            console.error('Content safety check error:', err);
-            if (err.response) {
-                if (err.response.status === 422) {
-                    message.error('消息审核失败：文本格式不合法');
-                    setIsSending(false);
-                    return;
-                }
-                const errMsg = err.response.data?.detail?.map(d => d.msg).join(', ') || err.response.data?.message;
-                if (errMsg) {
-                    message.error(`消息审核未通过: ${errMsg}`);
                 } else {
-                    message.error('消息审核未通过，可能包含敏感词汇');
+                    // 网络连接失败等异常情况，友好提示并允许发送 (Fail-Safe)
+                    message.warning('安全审核服务连接失败，已跳过审核');
                 }
-                setIsSending(false);
-                return;
-            } else {
-                // 网络连接失败等异常情况，友好提示并允许发送 (Fail-Safe)
-                message.warning('安全审核服务连接失败，已跳过审核');
             }
         }
 
@@ -1882,72 +1885,86 @@ const FriendChat = () => {
                             <div ref={messagesEndRef} />
                         </div>
                         <div style={{ padding: 20, borderTop: '1px solid #f0f0f0' }}>
-                            <div style={{ marginBottom: 10 }}>
-                                <Upload showUploadList={false} beforeUpload={f => { handleFileUpload(f, 'IMAGE'); return false; }} accept="image/*" customRequest={() => { }}>
-                                    <Button icon={<PictureOutlined />} type="text" title="发送图片" />
-                                </Upload>
-                                <Upload showUploadList={false} beforeUpload={f => { handleFileUpload(f, 'VIDEO'); return false; }} accept="video/*" customRequest={() => { }}>
-                                    <Button icon={<VideoCameraOutlined />} type="text" title="发送视频" />
-                                </Upload>
-                                <Popover
-                                    trigger="click"
-                                    placement="topLeft"
-                                    content={callTrayContent}
-                                    open={callTrayVisible}
-                                    onOpenChange={setCallTrayVisible}
-                                >
-                                    <Button
-                                        icon={<PhoneOutlined />}
-                                        type="text"
-                                        title="通话"
-                                    >
-                                        通话
-                                    </Button>
-                                </Popover>
-                                <Button
-                                    icon={<AudioOutlined />}
-                                    type={recording ? 'primary' : 'text'}
-                                    danger={recording}
-                                    onMouseDown={startRecording}
-                                    onMouseUp={stopRecording}
-                                    onMouseLeave={stopRecording}
-                                    onTouchStart={startRecording}
-                                    onTouchEnd={stopRecording}
-                                    title="按住录音"
-                                />
-                                <Upload showUploadList={false} beforeUpload={f => { handleFileUpload(f, 'FILE'); return false; }} customRequest={() => { }}>
-                                    <Button icon={<PaperClipOutlined />} type="text" title="发送文件" />
-                                </Upload>
-                                {isMobile ? (
-                                    <>
-                                        <Button
-                                            icon={<span role="img" aria-label="emoji" style={{ fontSize: 16 }}>😊</span>}
-                                            type="text"
-                                            title="表情"
-                                            onClick={() => setEmojiVisible(true)}
-                                        />
-                                        <Drawer
-                                            title="选择表情"
-                                            placement="bottom"
-                                            closable={true}
-                                            onClose={() => setEmojiVisible(false)}
-                                            visible={emojiVisible}
-                                            height="40vh"
-                                            bodyStyle={{ padding: 0 }}
-                                        >
-                                            {emojiContent}
-                                        </Drawer>
-                                    </>
-                                ) : (
-                                    <Dropdown
-                                        overlay={emojiContent}
-                                        trigger={['click']}
+                            <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <Upload showUploadList={false} beforeUpload={f => { handleFileUpload(f, 'IMAGE'); return false; }} accept="image/*" customRequest={() => { }}>
+                                        <Button icon={<PictureOutlined />} type="text" title="发送图片" />
+                                    </Upload>
+                                    <Upload showUploadList={false} beforeUpload={f => { handleFileUpload(f, 'VIDEO'); return false; }} accept="video/*" customRequest={() => { }}>
+                                        <Button icon={<VideoCameraOutlined />} type="text" title="发送视频" />
+                                    </Upload>
+                                    <Popover
+                                        trigger="click"
                                         placement="topLeft"
+                                        content={callTrayContent}
+                                        open={callTrayVisible}
+                                        onOpenChange={setCallTrayVisible}
                                     >
-                                        <Button icon={<span role="img" aria-label="emoji" style={{ fontSize: 16 }}>😊</span>} type="text" title="表情" />
-                                    </Dropdown>
-                                )}
-                            </div >
+                                        <Button
+                                            icon={<PhoneOutlined />}
+                                            type="text"
+                                            title="通话"
+                                        >
+                                            通话
+                                        </Button>
+                                    </Popover>
+                                    <Button
+                                        icon={<AudioOutlined />}
+                                        type={recording ? 'primary' : 'text'}
+                                        danger={recording}
+                                        onMouseDown={startRecording}
+                                        onMouseUp={stopRecording}
+                                        onMouseLeave={stopRecording}
+                                        onTouchStart={startRecording}
+                                        onTouchEnd={stopRecording}
+                                        title="按住录音"
+                                    />
+                                    <Upload showUploadList={false} beforeUpload={f => { handleFileUpload(f, 'FILE'); return false; }} customRequest={() => { }}>
+                                        <Button icon={<PaperClipOutlined />} type="text" title="发送文件" />
+                                    </Upload>
+                                    {isMobile ? (
+                                        <>
+                                            <Button
+                                                icon={<span role="img" aria-label="emoji" style={{ fontSize: 16 }}>😊</span>}
+                                                type="text"
+                                                title="表情"
+                                                onClick={() => setEmojiVisible(true)}
+                                            />
+                                            <Drawer
+                                                title="选择表情"
+                                                placement="bottom"
+                                                closable={true}
+                                                onClose={() => setEmojiVisible(false)}
+                                                visible={emojiVisible}
+                                                height="40vh"
+                                                bodyStyle={{ padding: 0 }}
+                                            >
+                                                {emojiContent}
+                                            </Drawer>
+                                        </>
+                                    ) : (
+                                        <Dropdown
+                                            overlay={emojiContent}
+                                            trigger={['click']}
+                                            placement="topLeft"
+                                        >
+                                            <Button icon={<span role="img" aria-label="emoji" style={{ fontSize: 16 }}>😊</span>} type="text" title="表情" />
+                                        </Dropdown>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ marginRight: 8, fontSize: 13, color: '#666' }}>文本内容审核</span>
+                                    <Switch
+                                        checked={auditEnabled}
+                                        onChange={checked => {
+                                            setAuditEnabled(checked);
+                                            localStorage.setItem('auditEnabled', checked ? 'true' : 'false');
+                                        }}
+                                        checkedChildren="开"
+                                        unCheckedChildren="关"
+                                    />
+                                </div>
+                            </div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 {replyMessage && (
                                     <div style={{ background: '#f5f5f5', padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '4px solid #1890ff', marginBottom: 5 }}>
