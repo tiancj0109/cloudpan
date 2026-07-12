@@ -126,4 +126,25 @@ public class UserController {
                 .contentType(org.springframework.http.MediaType.IMAGE_JPEG) // Simple assumption, or detect type
                 .body(resource);
     }
+
+    @GetMapping("/account-summary")
+    public Map<String, Object> getAccountSummary(@RequestAttribute("userId") Long userId) {
+        Map<String, Object> summary = userService.getAccountSummary(userId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("data", summary);
+        return result;
+    }
+
+    @DeleteMapping("/account")
+    public Map<String, Object> deleteAccount(@RequestAttribute("userId") Long userId,
+                                              @RequestBody Map<String, String> params) {
+        String password = params.get("password");
+        Map<String, Object> stats = userService.deleteAccount(userId, password);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("message", "账户已注销，所有数据已清除");
+        result.put("data", stats);
+        return result;
+    }
 }

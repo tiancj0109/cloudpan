@@ -18,4 +18,5 @@ public interface FileInfoMapper {
     FileInfo findByUserIdAndParentIdAndName(@Param("userId") Long userId, @Param("parentId") Long parentId, @Param("filename") String filename);
     List<FileInfo> searchByUserIdAndName(@Param("userId") Long userId, @Param("keyword") String keyword);
     Long sumFileSizeByUserId(@Param("userId") Long userId);
+    List<FileInfo> findAllFilesByUserId(@Param("userId") Long userId);
 }

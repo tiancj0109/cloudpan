@@ -1,17 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Upload, message, Avatar, Divider, Modal } from 'antd';
-import { UserOutlined, UploadOutlined, LockOutlined, MailOutlined, QrcodeOutlined, ScanOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Form, Input, Button, Upload, message, Avatar, Divider, Modal, Progress, Result, Spin } from 'antd';
+import { UserOutlined, UploadOutlined, LockOutlined, MailOutlined, QrcodeOutlined, ScanOutlined, ExclamationCircleOutlined, DeleteOutlined, CheckCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import api from '../utils/api';
 import ImgCrop from 'antd-img-crop';
+import { useNavigate } from 'react-router-dom';
 
 const UserInfo = () => {
+    const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState('');
     const [showPasswordForm, setShowPasswordForm] = useState(false);
     const [showQrCode, setShowQrCode] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
+
+    // Account deletion state
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [summary, setSummary] = useState(null);
+    const [summaryLoading, setSummaryLoading] = useState(false);
+    const [deletePassword, setDeletePassword] = useState('');
+    const [deleteStep, setDeleteStep] = useState(-1); // -1 = show summary, 0..N = progress
+    const [deleteComplete, setDeleteComplete] = useState(false);
+
+    const deletionSteps = [
+        { title: '删除聊天记录及文件', desc: '正在清除所有私聊消息和聊天文件...' },
+        { title: '删除朋友圈及媒体', desc: '正在清除所有动态、图片和视频...' },
+        { title: '删除云盘文件', desc: '正在清除所有上传的文件和文件夹...' },
+        { title: '清除好友关系', desc: '正在解除所有好友关系...' },
+        { title: '清除团队与群组', desc: '正在退出所有团队空间和群组...' },
+        { title: '注销账户', desc: '正在清除账户信息...' },
+    ];
+
+    const fetchSummary = useCallback(async () => {
+        setSummaryLoading(true);
+        try {
+            const res = await api.get('/auth/account-summary');
+            if (res.code === 200) {
+                setSummary(res.data);
+            }
+        } catch (err) {
+            message.error('获取账户信息失败');
+        } finally {
+            setSummaryLoading(false);
+        }
+    }, []);
+
+    const handleDeleteAccount = useCallback(async () => {
+        if (!deletePassword) {
+            message.warning('请输入密码');
+            return;
+        }
+
+        setDeleteStep(0);
+
+        // Animate through each step
+        for (let i = 0; i < deletionSteps.length; i++) {
+            setDeleteStep(i);
+            await new Promise(resolve => setTimeout(resolve, 800));
+        }
+
+        // Call backend
+        try {
+            const res = await api.delete('/auth/account', { data: { password: deletePassword } });
+            if (res.code === 200) {
+                setDeleteStep(deletionSteps.length);
+                setDeleteComplete(true);
+                setTimeout(() => {
+                    localStorage.removeItem('token');
+                    navigate('/login');
+                }, 2500);
+            } else {
+                throw new Error(res.message || '注销失败');
+            }
+        } catch (err) {
+            setDeleteStep(-1); // Back to summary view
+            const errMsg = err.response?.data?.message || err.message || '未知错误';
+            message.error('注销失败：' + errMsg);
+        }
+    }, [deletePassword, navigate]);
 
     const fetchUserInfo = async () => {
         try {
@@ -267,7 +334,167 @@ const UserInfo = () => {
                         </Form.Item>
                     </Form>
                 )}
+
+                <Divider orientation="left" style={{ borderColor: '#ff4d4f' }}>危险操作</Divider>
+                <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: '8px', padding: '16px', maxWidth: '500px' }}>
+                    <p style={{ color: '#ff4d4f', fontWeight: 600, fontSize: '15px', marginBottom: '8px' }}>
+                        <ExclamationCircleOutlined style={{ marginRight: '8px' }} />
+                        注销账户
+                    </p>
+                    <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px', lineHeight: '1.8' }}>
+                        注销后，您的所有数据将被<strong>永久删除</strong>且无法恢复：<br />
+                        · 所有聊天记录及文件（包括好友收到的文件也将被删除）<br />
+                        · 所有云盘文件及文件夹<br />
+                        · 所有朋友圈动态及媒体文件<br />
+                        · 所有好友关系<br />
+                        · 所有团队空间及群组数据
+                    </p>
+                    <Button
+                        type="primary"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => { setShowDeleteModal(true); setDeleteStep(-1); setDeletePassword(''); setDeleteComplete(false); }}
+                    >
+                        注销账户
+                    </Button>
+                </div>
             </Card>
+
+            {/* ============ 注销账户弹窗 ============ */}
+            <Modal
+                title={
+                    <span style={{ color: '#ff4d4f' }}>
+                        <ExclamationCircleOutlined style={{ marginRight: 8 }} />
+                        注销账户
+                    </span>
+                }
+                open={showDeleteModal}
+                onCancel={() => { if (deleteStep === -1) { setShowDeleteModal(false); } }}
+                footer={null}
+                destroyOnClose
+                closable={deleteStep === -1}
+                maskClosable={deleteStep === -1}
+                width={520}
+                afterOpenChange={(open) => { if (open) fetchSummary(); }}
+            >
+                {/* Step -1: Show asset summary + password input */}
+                {deleteStep === -1 && !deleteComplete && (
+                    <div>
+                        {summaryLoading ? (
+                            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                                <Spin size="large" />
+                                <p style={{ marginTop: 16, color: '#999' }}>正在统计账户数据...</p>
+                            </div>
+                        ) : summary ? (
+                            <>
+                                <div style={{
+                                    background: '#fff2f0', border: '1px solid #ffccc7',
+                                    borderRadius: 8, padding: '16px', marginBottom: 20
+                                }}>
+                                    <p style={{ color: '#ff4d4f', fontWeight: 600, marginBottom: 12, fontSize: 14 }}>
+                                        ⚠️ 以下数据将被<strong>永久删除</strong>且无法恢复：
+                                    </p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 13 }}>
+                                        <div>📁 文件：<strong>{summary.fileCount}</strong> 个</div>
+                                        <div>📂 文件夹：<strong>{summary.folderCount}</strong> 个</div>
+                                        <div>💾 总大小：<strong>{summary.totalFileSizeDisplay}</strong></div>
+                                        <div>💬 聊天记录：<strong>{summary.chatMessages}</strong> 条</div>
+                                        <div>📷 朋友圈：<strong>{summary.moments}</strong> 条（{summary.momentMedia} 个媒体）</div>
+                                        <div>👥 好友：<strong>{summary.friends}</strong> 人</div>
+                                        <div>👥 群组：<strong>{summary.ownedGroups}</strong> 个创建 + <strong>{summary.joinedGroups}</strong> 个加入</div>
+                                        <div>🏢 团队：<strong>{summary.teams}</strong> 个</div>
+                                        <div>🔗 分享链接：<strong>{summary.shares}</strong> 个</div>
+                                        <div>🗑️ 回收站：<strong>{summary.recycleBinItems}</strong> 项</div>
+                                    </div>
+                                </div>
+
+                                <p style={{ color: '#666', marginBottom: 8 }}>
+                                    请输入<strong>登录密码</strong>以确认注销：
+                                </p>
+                                <Input.Password
+                                    placeholder="请输入登录密码"
+                                    value={deletePassword}
+                                    onChange={e => setDeletePassword(e.target.value)}
+                                    style={{ marginBottom: 20 }}
+                                    prefix={<LockOutlined />}
+                                    onPressEnter={handleDeleteAccount}
+                                />
+                                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                                    <Button onClick={() => { setShowDeleteModal(false); setDeletePassword(''); }}>
+                                        取消
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={handleDeleteAccount}
+                                        disabled={!deletePassword}
+                                    >
+                                        确认注销
+                                    </Button>
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                                <p style={{ color: '#999' }}>无法获取账户信息</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Step 0..N: Deletion progress animation */}
+                {deleteStep >= 0 && !deleteComplete && (
+                    <div style={{ padding: '24px 0' }}>
+                        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                            <LoadingOutlined style={{ fontSize: 48, color: '#1890ff' }} spin />
+                            <p style={{ marginTop: '16px', fontSize: '16px', fontWeight: 500 }}>
+                                正在注销账户...
+                            </p>
+                        </div>
+                        <Progress
+                            percent={Math.round((deleteStep / deletionSteps.length) * 100)}
+                            status="active"
+                            strokeColor={{ '0%': '#1890ff', '100%': '#ff4d4f' }}
+                        />
+                        <div style={{ marginTop: '24px' }}>
+                            {deletionSteps.map((step, index) => (
+                                <div
+                                    key={index}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                        padding: '10px 0',
+                                        opacity: index <= deleteStep ? 1 : 0.3,
+                                        transition: 'opacity 0.5s ease',
+                                    }}
+                                >
+                                    <div style={{
+                                        width: 32, height: 32, borderRadius: '50%',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: index < deleteStep ? '#52c41a' : index === deleteStep ? '#1890ff' : '#d9d9d9',
+                                        color: '#fff', fontSize: '14px', transition: 'all 0.5s ease',
+                                    }}>
+                                        {index < deleteStep ? <CheckCircleOutlined /> : index === deleteStep ? <LoadingOutlined spin /> : (index + 1)}
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 500, fontSize: '14px' }}>{step.title}</div>
+                                        {index === deleteStep && (
+                                            <div style={{ fontSize: '12px', color: '#999', marginTop: '2px' }}>{step.desc}</div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {deleteComplete && (
+                    <Result
+                        status="success"
+                        title="账户注销成功"
+                        subTitle="您的所有数据已永久删除。即将跳转到登录页面..."
+                    />
+                )}
+            </Modal>
         </div>
     );
 };

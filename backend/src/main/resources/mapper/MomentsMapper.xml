@@ -170,4 +170,29 @@
           )
     </select>
 
+    <!-- Account deletion: get all moments by user -->
+    <select id="selectByUserId" resultType="com.cloudpan.entity.Moments">
+        SELECT * FROM moments WHERE user_id = #{userId}
+    </select>
+
+    <!-- Account deletion: delete all moments by user -->
+    <delete id="deleteByUserId">
+        DELETE FROM moments WHERE user_id = #{userId}
+    </delete>
+
+    <!-- Account deletion: delete all likes by user -->
+    <delete id="deleteLikesByUserId">
+        DELETE FROM moment_likes WHERE user_id = #{userId}
+    </delete>
+
+    <!-- Account deletion: delete all comments by user (or replying to user) -->
+    <delete id="deleteCommentsByUserId">
+        DELETE FROM moment_comments WHERE user_id = #{userId} OR reply_to_user_id = #{userId}
+    </delete>
+
+    <!-- Account deletion: delete visibility entries targeting this user -->
+    <delete id="deleteVisibilityByUserId">
+        DELETE FROM moment_visibility WHERE user_id = #{userId}
+    </delete>
+
 </mapper>

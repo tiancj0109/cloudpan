@@ -30,4 +30,8 @@ public interface MomentNotificationMapper {
                                    @Param("type") String type,
                                    @Param("oldContent") String oldContent,
                                    @Param("newContent") String newContent);
+
+    // Account deletion support
+    int deleteByUserId(@Param("userId") Long userId);
+    int deleteBySenderId(@Param("senderId") Long senderId);
 }

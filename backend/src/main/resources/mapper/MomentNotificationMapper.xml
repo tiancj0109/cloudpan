@@ -62,4 +62,14 @@
           AND content = #{oldContent}
     </update>
 
+    <!-- Account deletion: delete notifications where user is recipient -->
+    <delete id="deleteByUserId">
+        DELETE FROM moment_notifications WHERE user_id = #{userId}
+    </delete>
+
+    <!-- Account deletion: delete notifications where user is sender -->
+    <delete id="deleteBySenderId">
+        DELETE FROM moment_notifications WHERE sender_id = #{senderId}
+    </delete>
+
 </mapper>

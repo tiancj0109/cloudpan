@@ -50,4 +50,11 @@ public interface MomentsMapper {
 
     void updateVisibility(@Param("id") Long id, @Param("visibility") String visibility);
     int countNewMoments(@Param("friendIds") List<Long> friendIds, @Param("userId") Long userId, @Param("lastReadAt") Date lastReadAt);
+
+    // Account deletion support
+    List<Moments> selectByUserId(@Param("userId") Long userId);
+    int deleteByUserId(@Param("userId") Long userId);
+    int deleteLikesByUserId(@Param("userId") Long userId);
+    int deleteCommentsByUserId(@Param("userId") Long userId);
+    int deleteVisibilityByUserId(@Param("userId") Long userId);
 }

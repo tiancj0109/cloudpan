@@ -85,8 +85,13 @@
                 u.username as friend_username, u.avatar as friend_avatar, u.email as friend_email, u.signature as friend_signature
         FROM friend f
         JOIN user u ON u.id = f.action_user_id
-        WHERE (f.user_id = #{userId} OR f.friend_id = #{userId}) 
-          AND f.status = 2 
+        WHERE (f.user_id = #{userId} OR f.friend_id = #{userId})
+          AND f.status = 2
           AND f.action_user_id != #{userId}
+    </select>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM friend
+        WHERE (user_id = #{userId} OR friend_id = #{userId}) AND status = 1
     </select>
 </mapper>

@@ -82,4 +82,11 @@
         FROM file_info
         WHERE user_id = #{userId}
     </select>
+
+    <!-- Account deletion: find all non-folder files by user -->
+    <select id="findAllFilesByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM file_info
+        WHERE user_id = #{userId} AND is_folder = 0
+    </select>
 </mapper>

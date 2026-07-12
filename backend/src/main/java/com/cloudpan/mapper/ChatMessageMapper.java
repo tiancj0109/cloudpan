@@ -28,4 +28,11 @@ public interface ChatMessageMapper {
     
     int countTotalUnread(@Param("userId") Long userId);
     int countGroupUnread(@Param("groupId") Long groupId, @Param("lastReadMessageId") Long lastReadMessageId, @Param("userId") Long userId);
+
+    // Account deletion support
+    int countByUserId(@Param("userId") Long userId);
+    List<ChatMessage> findAllFilesByUserId(@Param("userId") Long userId);
+    List<ChatMessage> findGroupFilesByOwnerId(@Param("ownerId") Long ownerId);
+    int deleteByUserId(@Param("userId") Long userId);
+    int deleteByGroupOwnerId(@Param("ownerId") Long ownerId);
 }

@@ -15,4 +15,5 @@ public interface ShareLinkMapper {
     int incrementVisitCount(@Param("id") Long id);
     int incrementDownloadCount(@Param("id") Long id);
     ShareLink findById(@Param("id") Long id);
+    int countByUserId(@Param("userId") Long userId);
 }

@@ -53,4 +53,8 @@
     <select id="findById" resultMap="BaseResultMap">
         SELECT * FROM share_link WHERE id = #{id}
     </select>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM share_link WHERE user_id = #{userId}
+    </select>
 </mapper>

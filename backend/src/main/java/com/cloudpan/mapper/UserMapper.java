@@ -14,4 +14,5 @@ public interface UserMapper {
     List<User> searchUsers(@Param("keyword") String keyword);
     int update(User user);
     void updateLastMomentsReadAt(@Param("id") Long id);
+    int deleteById(@Param("id") Long id);
 }

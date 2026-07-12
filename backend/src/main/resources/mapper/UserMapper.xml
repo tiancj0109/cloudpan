@@ -62,4 +62,8 @@
         SET last_moments_read_at = NOW()
         WHERE id = #{id}
     </update>
+
+    <delete id="deleteById">
+        DELETE FROM user WHERE id = #{id}
+    </delete>
 </mapper>

@@ -52,4 +52,8 @@
     <delete id="deleteById">
         DELETE FROM chat_group WHERE id = #{id}
     </delete>
+
+    <select id="findByOwnerId" resultMap="BaseResultMap">
+        SELECT * FROM chat_group WHERE owner_id = #{ownerId}
+    </select>
 </mapper>

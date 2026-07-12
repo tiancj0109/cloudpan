@@ -13,4 +13,5 @@ public interface RecycleBinMapper {
     RecycleBin findById(@Param("id") Long id);
     int deleteById(@Param("id") Long id);
     RecycleBin findByFileId(@Param("fileId") Long fileId);
+    int countByUserId(@Param("userId") Long userId);
 }

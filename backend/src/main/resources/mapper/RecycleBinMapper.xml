@@ -35,4 +35,8 @@
     <delete id="deleteById">
         DELETE FROM recycle_bin WHERE id = #{id}
     </delete>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM recycle_bin WHERE user_id = #{userId}
+    </select>
 </mapper>

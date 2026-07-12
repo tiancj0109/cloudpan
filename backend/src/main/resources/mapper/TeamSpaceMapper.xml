@@ -41,4 +41,13 @@
     <delete id="deleteById">
         DELETE FROM team_space WHERE id = #{id}
     </delete>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM team_space
+        WHERE id IN (
+            SELECT team_id FROM team_member WHERE user_id = #{userId}
+            UNION
+            SELECT id FROM team_space WHERE owner_id = #{userId}
+        )
+    </select>
 </mapper>

@@ -14,6 +14,8 @@ public interface ChatGroupMapper {
     List<ChatGroup> findByUserId(Long userId);
     
     int update(ChatGroup chatGroup);
-    
+
     int deleteById(Long id);
+
+    List<ChatGroup> findByOwnerId(@Param("ownerId") Long ownerId);
 }

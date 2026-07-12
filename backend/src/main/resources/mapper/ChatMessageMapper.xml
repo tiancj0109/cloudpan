@@ -215,4 +215,37 @@
         SELECT COUNT(*) FROM chat_message
         WHERE group_id = #{groupId} AND id > #{lastReadMessageId} AND sender_id != #{userId}
     </select>
+
+    <!-- Account deletion: count messages involving a user -->
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM chat_message
+        WHERE sender_id = #{userId} OR receiver_id = #{userId}
+    </select>
+
+    <!-- Account deletion: find all file paths for messages involving a user -->
+    <select id="findAllFilesByUserId" resultMap="BaseResultMap">
+        SELECT * FROM chat_message
+        WHERE (sender_id = #{userId} OR receiver_id = #{userId})
+          AND file_path IS NOT NULL
+    </select>
+
+    <!-- Account deletion: find all file paths in groups owned by a user -->
+    <select id="findGroupFilesByOwnerId" resultMap="BaseResultMap">
+        SELECT m.* FROM chat_message m
+        JOIN chat_group g ON m.group_id = g.id
+        WHERE g.owner_id = #{ownerId} AND m.file_path IS NOT NULL
+    </select>
+
+    <!-- Account deletion: delete all messages involving a user -->
+    <delete id="deleteByUserId">
+        DELETE FROM chat_message
+        WHERE sender_id = #{userId} OR receiver_id = #{userId}
+    </delete>
+
+    <!-- Account deletion: delete all messages in groups owned by a user -->
+    <delete id="deleteByGroupOwnerId">
+        DELETE m FROM chat_message m
+        JOIN chat_group g ON m.group_id = g.id
+        WHERE g.owner_id = #{ownerId}
+    </delete>
 </mapper>

@@ -14,4 +14,5 @@ public interface FriendMapper {
     List<Friend> findListByUserId(@Param("userId") Long userId);
     List<Friend> findRequestsByUserId(@Param("userId") Long userId); // Pending requests received by user
     List<Friend> findDeleteRequestsByUserId(@Param("userId") Long userId); // Delete requests received by user
+    int countByUserId(@Param("userId") Long userId);
 }

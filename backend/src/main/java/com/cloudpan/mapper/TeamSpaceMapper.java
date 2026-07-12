@@ -14,4 +14,5 @@ public interface TeamSpaceMapper {
     List<TeamSpace> findJoinedTeams(@Param("userId") Long userId);
     int update(TeamSpace teamSpace);
     int deleteById(@Param("id") Long id);
+    int countByUserId(@Param("userId") Long userId);
 }
