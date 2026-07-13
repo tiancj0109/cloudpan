@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import Register from './pages/Register';
+import AuthPage from './pages/AuthPage';
 
 import ShareLinkView from './pages/ShareLinkView';
 import FileList from './pages/FileList';
@@ -25,8 +24,8 @@ function App() {
     return (
         <Router basename={process.env.PUBLIC_URL}>
             <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+                <Route path="/login" element={<AuthPage />} />
+                <Route path="/register" element={<AuthPage />} />
                 <Route path="/share/:shareCode" element={<ShareLinkView />} />
                 <Route path="/" element={<PrivateRoute><MainLayout /></PrivateRoute>}>
                     <Route index element={<Navigate to="/files" />} />
