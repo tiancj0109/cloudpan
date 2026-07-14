@@ -4,29 +4,13 @@ import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 
-/* ── Floating Label Input ─── */
-const FloatingField = ({ value, onChange, label, icon, type, ...rest }) => {
-    const [focused, setFocused] = useState(false);
-    const active = focused || (value && String(value).length > 0);
-
-    const inputEl = type === 'password'
-        ? <Input.Password {...rest} />
-        : <Input {...rest} />;
-
+/* ── Auth Input ── */
+const AuthInput = ({ label, icon, type, ...rest }) => {
+    const InputComponent = type === 'password' ? Input.Password : Input;
     return (
-        <div className={`float-field ${active ? 'focused' : ''}`}>
-            <div className="float-input-wrap">
-                <span className={`float-icon ${active ? 'active' : ''}`}>{icon}</span>
-                {React.cloneElement(inputEl, {
-                    value: value || '',
-                    onChange,
-                    onFocus: () => setFocused(true),
-                    onBlur: () => setFocused(false),
-                    className: 'float-input-el',
-                    style: { fontSize: 15 },
-                })}
-            </div>
-            <label className={`float-label ${active ? 'active' : ''}`}>{label}</label>
+        <div className="auth-input">
+            <span className="auth-input-icon">{icon}</span>
+            <InputComponent prefix={null} placeholder={label} {...rest} />
         </div>
     );
 };
@@ -182,14 +166,8 @@ const AuthPage = () => {
                     color: #1d1d1f; margin-bottom: 28px; text-align: center;
                 }
 
-                /* ── Floating Field ── */
-                .float-field {
-                    position: relative;
-                    margin-bottom: 20px;
-                }
-
-                /* Custom input wrapper — draws the border */
-                .float-input-wrap {
+                /* ── Auth Input ── */
+                .auth-input {
                     position: relative;
                     display: flex;
                     align-items: center;
@@ -200,19 +178,18 @@ const AuthPage = () => {
                     background: rgba(255,255,255,0.35);
                     transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
                     overflow: hidden;
+                    margin-bottom: 20px;
                 }
-                .float-field:hover .float-input-wrap {
+                .auth-input:hover {
                     border-color: rgba(0,113,227,0.35);
                     background: rgba(255,255,255,0.45);
                 }
-                .float-field.focused .float-input-wrap {
+                .auth-input:focus-within {
                     border-color: #0071e3;
                     background: rgba(255,255,255,0.55);
                     box-shadow: 0 0 0 4px rgba(0,113,227,0.12);
                 }
-
-                /* Icon */
-                .float-icon {
+                .auth-input-icon {
                     position: absolute;
                     left: 14px;
                     color: #86868b;
@@ -220,10 +197,9 @@ const AuthPage = () => {
                     z-index: 2;
                     transition: color 0.3s ease;
                 }
-                .float-icon.active { color: #0071e3; }
-
-                /* Strip ALL Ant Design styling from the actual input */
-                .float-input-el {
+                .auth-input:focus-within .auth-input-icon { color: #0071e3; }
+                .auth-input .ant-input,
+                .auth-input .ant-input-affix-wrapper {
                     width: 100% !important;
                     border: none !important;
                     background: transparent !important;
@@ -235,45 +211,11 @@ const AuthPage = () => {
                     font-size: 15px;
                     outline: none !important;
                 }
-                .float-input-el:focus {
-                    box-shadow: none !important;
-                    border: none !important;
-                }
-                .float-input-el::placeholder {
-                    color: transparent;
-                }
-
-                /* Kill Ant Design affix wrapper styling */
-                .float-input-wrap .ant-input-affix-wrapper {
-                    border: none !important;
-                    background: transparent !important;
-                    box-shadow: none !important;
-                    padding: 0 !important;
-                    height: auto !important;
+                .auth-input .ant-input-affix-wrapper {
                     min-height: auto !important;
                 }
-                .float-input-wrap .ant-input-affix-wrapper input {
+                .auth-input .ant-input-affix-wrapper input {
                     padding: 0 !important;
-                }
-
-                /* Floating label */
-                .float-label {
-                    position: absolute;
-                    left: 44px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    color: #86868b;
-                    font-size: 15px;
-                    pointer-events: none;
-                    z-index: 3;
-                    transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
-                }
-                .float-label.active {
-                    top: 10px;
-                    font-size: 11px;
-                    color: #0071e3;
-                    transform: translateY(0);
-                    font-weight: 500;
                 }
 
                 /* ─ Ripple Button ── */
@@ -328,10 +270,10 @@ const AuthPage = () => {
                         <div className="auth-title">云盘登录</div>
                         <Form name="login" onFinish={onLogin} autoComplete="off">
                             <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-                                <FloatingField label="用户名" icon={<UserOutlined />} />
+                                <AuthInput label="用户名" icon={<UserOutlined />} />
                             </Form.Item>
                             <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-                                <FloatingField label="密码" icon={<LockOutlined />} type="password" />
+                                <AuthInput label="密码" icon={<LockOutlined />} type="password" />
                             </Form.Item>
                             <Form.Item style={{ marginTop: 8 }}>
                                 <RippleButton loading={loginLoading} type="submit">登录</RippleButton>
@@ -347,13 +289,13 @@ const AuthPage = () => {
                         <div className="auth-title">云盘注册</div>
                         <Form name="register" onFinish={onRegister} autoComplete="off">
                             <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-                                <FloatingField label="用户名" icon={<UserOutlined />} />
+                                <AuthInput label="用户名" icon={<UserOutlined />} />
                             </Form.Item>
                             <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-                                <FloatingField label="密码" icon={<LockOutlined />} type="password" />
+                                <AuthInput label="密码" icon={<LockOutlined />} type="password" />
                             </Form.Item>
                             <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '邮箱格式不正确' }]}>
-                                <FloatingField label="邮箱" icon={<MailOutlined />} />
+                                <AuthInput label="邮箱" icon={<MailOutlined />} />
                             </Form.Item>
                             <Form.Item style={{ marginTop: 8 }}>
                                 <RippleButton loading={registerLoading} type="submit">注册</RippleButton>
