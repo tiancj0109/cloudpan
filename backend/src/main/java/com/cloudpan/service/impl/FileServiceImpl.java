@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.io.File;
 import java.util.List;
 
 @Service
@@ -74,14 +75,21 @@ public class FileServiceImpl implements FileService {
         int storageType = getStorageType();
         
         String path = storage.upload(file, "");
-        
+
+        // Extract basename in case the uploaded filename contains a path
+        // (e.g. "Folder/sub/file.txt" from folder uploads in some browsers)
+        String originalName = file.getOriginalFilename();
+        if (originalName != null) {
+            originalName = new File(originalName).getName();
+        }
+
         FileInfo fileInfo = new FileInfo();
         fileInfo.setUserId(userId);
         fileInfo.setParentId(parentId);
-        fileInfo.setFilename(file.getOriginalFilename());
+        fileInfo.setFilename(originalName);
         fileInfo.setFilePath(path);
         fileInfo.setFileSize(file.getSize());
-        fileInfo.setFileType(getFileExtension(file.getOriginalFilename()));
+        fileInfo.setFileType(getFileExtension(originalName));
         fileInfo.setIsFolder(0);
         fileInfo.setStorageType(storageType);
         

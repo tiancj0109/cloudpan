@@ -20,7 +20,12 @@ public class LocalStorageImpl implements StorageService {
 
     @Override
     public String upload(MultipartFile file, String path) {
-        String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+        // Extract basename in case the filename contains a path (e.g. from folder uploads)
+        String originalName = file.getOriginalFilename();
+        if (originalName != null) {
+            originalName = new File(originalName).getName();
+        }
+        String fileName = UUID.randomUUID().toString() + "_" + originalName;
         File dest = new File(rootPath + File.separator + fileName);
         try {
             if (!dest.getParentFile().exists()) {

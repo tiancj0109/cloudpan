@@ -140,6 +140,15 @@ const FileList = () => {
     const pendingFiles = React.useRef([]);
     const isProcessing = React.useRef(false);
 
+    // Create a File with a clean basename for upload (strips any directory path
+    // that some browsers include in file.name when using webkitdirectory)
+    const getUploadFile = (file, relativePath) => {
+        const fullPath = relativePath || file.name || '';
+        const basename = fullPath.split('/').pop() || file.name;
+        if (basename === file.name) return file;
+        return new File([file], basename, { type: file.type, lastModified: file.lastModified });
+    };
+
     // Process batch folder upload
     const processBatchFolderUpload = async () => {
         if (isProcessing.current || pendingFiles.current.length === 0) return;
@@ -239,7 +248,7 @@ const FileList = () => {
                 if (!relativePath) {
                     // Regular file without path
                     const formData = new FormData();
-                    formData.append('file', file);
+                    formData.append('file', getUploadFile(file));
                     formData.append('parentId', parentId);
                     try {
                         await api.post('/file/upload', formData);
@@ -254,7 +263,7 @@ const FileList = () => {
                 if (pathParts.length <= 1) {
                     // File in root
                     const formData = new FormData();
-                    formData.append('file', file);
+                    formData.append('file', getUploadFile(file, relativePath));
                     formData.append('parentId', parentId);
                     try {
                         await api.post('/file/upload', formData);
@@ -270,7 +279,7 @@ const FileList = () => {
                 const targetFolderId = folderCache.current.get(targetFolderPath) || parentId;
 
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('file', getUploadFile(file, relativePath));
                 formData.append('parentId', targetFolderId);
 
                 try {
@@ -333,7 +342,9 @@ const FileList = () => {
         // to ensure formData.append uses the correct File.name (basename only, not the
         // full webkitRelativePath like "dist/clipboard-ai-tool.exe")
         const rawFile = file.originFileObj || file;
-        const relativePath = file.webkitRelativePath || rawFile.webkitRelativePath || file.path;
+        // rawFile is the actual browser File — prefer its webkitRelativePath over
+        // the Upload wrapper's, which may be set to the full path (not the basename)
+        const relativePath = rawFile.webkitRelativePath || file.webkitRelativePath || file.path;
 
         if (!relativePath) {
             // Regular file upload
@@ -919,7 +930,7 @@ const FileList = () => {
                 }
 
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('file', getUploadFile(file, relativePath));
                 formData.append('parentId', uploadParentId);
 
                 try {

@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
@@ -34,7 +35,12 @@ public class OssStorageImpl implements StorageService {
         
         OSS ossClient = getOssClient(config);
         try {
-            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            // Extract basename in case the filename contains a path (e.g. from folder uploads)
+            String originalName = file.getOriginalFilename();
+            if (originalName != null) {
+                originalName = new File(originalName).getName();
+            }
+            String fileName = UUID.randomUUID().toString() + "_" + originalName;
             // path here is treated as directory prefix if needed, or just use fileName
             String key = fileName; 
             ossClient.putObject(config.getBucketName(), key, file.getInputStream());
